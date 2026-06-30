@@ -1,0 +1,26 @@
+{
+  "name": "cloudflare-news-aggregator",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Personal news aggregator powered by Cloudflare, TanStack Start, Hono, and D1",
+  "scripts": {
+    "build": "turbo run build",
+    "dev:web": "turbo run dev --filter=@repo/web",
+    "dev:fetcher": "turbo run dev --filter=@repo/fetcher",
+    "db:generate": "turbo run db:generate --filter=@repo/db",
+    "db:migrate": "turbo run db:migrate --filter=@repo/db",
+    "deploy:web": "turbo run deploy --filter=@repo/web",
+    "deploy:fetcher": "turbo run deploy --filter=@repo/fetcher",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250100.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

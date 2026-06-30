@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@repo/shared": ["./src/index.ts"],
+      "@repo/db": ["../db/src/index.ts"],
+      "@repo/db/schema": ["../db/src/schema.ts"]
+    },
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src/**/*"]
+}

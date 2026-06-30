@@ -1,0 +1,34 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+.output
+.vinxi
+.tanstack-start
+.wrangler
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+.playwright-mcp
+app.config.timestamp_*
+apps/web/app.config.timestamp_*
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*

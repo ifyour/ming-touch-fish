@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@repo/db": ["./src/index.ts"],
+      "@repo/db/schema": ["./src/schema.ts"]
+    },
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["src/**/*", "drizzle.config.ts"]
+}

@@ -1,0 +1,55 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { Stack, Title, Loader, Alert } from '@mantine/core';
+import { IconAlertCircle } from '@tabler/icons-react';
+import type { ArticleGroupedBySource } from '@repo/shared';
+import { SourceSection } from '../components/SourceSection.js';
+import { getApiUrl } from '../utils/apiUrl.js';
+
+export const Route = createFileRoute('/')({
+  component: HomePage,
+  loader: async ({ context }) => {
+    return context.queryClient.ensureQueryData({
+      queryKey: ['articles', 'grouped'],
+      queryFn: fetchGroupedArticles,
+    });
+  },
+});
+
+async function fetchGroupedArticles(): Promise<ArticleGroupedBySource[]> {
+  const response = await fetch(await getApiUrl('/api/articles/grouped'));
+  if (!response.ok) {
+    throw new Error('Failed to load articles');
+  }
+  return response.json();
+}
+
+function HomePage() {
+  const { data: groups, error, isLoading } = useSuspenseQuery({
+    queryKey: ['articles', 'grouped'],
+    queryFn: fetchGroupedArticles,
+  });
+
+  if (isLoading) {
+    return <Loader />;
+  }
+
+  if (error) {
+    return (
+      <Alert icon={<IconAlertCircle size={16} />} title="加载失败" color="red">
+        {error.message}
+      </Alert>
+    );
+  }
+
+  return (
+    <Stack gap="xl" py="md">
+      <Title order={2}>今日热点</Title>
+      {groups?.length === 0 ? (
+        <Alert>暂无资讯，请先添加资讯源并运行抓取。</Alert>
+      ) : (
+        groups?.map((group) => <SourceSection key={group.source.id} group={group} />)
+      )}
+    </Stack>
+  );
+}

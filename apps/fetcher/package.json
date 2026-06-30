@@ -1,0 +1,22 @@
+{
+  "name": "@repo/fetcher",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@extractus/feed-extractor": "^7.1.0",
+    "@repo/db": "workspace:*",
+    "@repo/shared": "workspace:*",
+    "drizzle-orm": "^0.39.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250100.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.107.0"
+  }
+}
