@@ -3,7 +3,7 @@ import { Scripts } from '@tanstack/react-start';
 import { AppShell, Container, Title, Text, Group, Button } from '@mantine/core';
 import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
 import type { RouterContext } from '../router';
 import { queryClient } from '../queryClient';
 import mantineCoreCss from '@mantine/core/styles.css?inline';
@@ -45,9 +45,10 @@ function RootComponent() {
       <body>
         <div id="root">
           <QueryClientProvider client={queryClient}>
-            <MantineProvider theme={theme}>
-              <Notifications position="top-right" />
-              <AppShell header={{ height: 60 }} padding="md">
+            <HydrationBoundary>
+              <MantineProvider theme={theme}>
+                <Notifications position="top-right" />
+                <AppShell header={{ height: 60 }} padding="md">
                 <AppShell.Header>
                   <Container
                     size="xl"
@@ -76,6 +77,7 @@ function RootComponent() {
                 </AppShell.Main>
               </AppShell>
             </MantineProvider>
+          </HydrationBoundary>
           </QueryClientProvider>
         </div>
         <Scripts />

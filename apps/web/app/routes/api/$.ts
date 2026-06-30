@@ -9,10 +9,24 @@ interface CloudflareContext {
   context?: ExecutionContext;
 }
 
+let devBindings: Bindings | null = null;
+
+async function getDevBindings(): Promise<Bindings> {
+  if (devBindings) return devBindings;
+  try {
+    const { getBindingsProxy } = await import('wrangler');
+    const proxy = await getBindingsProxy({ configPath: '/Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/wrangler.toml' });
+    devBindings = proxy.bindings as unknown as Bindings;
+    return devBindings;
+  } catch {
+    return createMockEnv();
+  }
+}
+
 async function handleAPI({ request }: { request: Request }) {
   const event = getEvent();
   const cloudflare = (event.context as { cloudflare?: CloudflareContext }).cloudflare;
-  const env = cloudflare?.env ?? createMockEnv();
+  const env = cloudflare?.env ?? (await getDevBindings());
   const ctx = cloudflare?.context;
   return honoApp.fetch(request, env, ctx);
 }

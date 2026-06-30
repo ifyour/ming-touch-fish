@@ -36,14 +36,21 @@ export function isLatinText(text: string): boolean {
 /**
  * Determine whether a source should be fetched now based on its frequency and last fetch time.
  */
+function toDate(v: Date | string | null | undefined): Date | null {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+  return new Date(v);
+}
+
 export function shouldFetchNow(
   frequency: 'hourly' | 'twice_daily' | 'daily',
-  lastFetchedAt: Date | null | undefined
+  lastFetchedAt: Date | string | null | undefined
 ): boolean {
-  if (!lastFetchedAt) return true;
+  const d = toDate(lastFetchedAt);
+  if (!d) return true;
 
   const now = Date.now();
-  const elapsed = now - lastFetchedAt.getTime();
+  const elapsed = now - d.getTime();
 
   const intervals = {
     hourly: 60 * 60 * 1000,
@@ -57,9 +64,10 @@ export function shouldFetchNow(
 /**
  * Format a date relative to now (e.g. "2 hours ago").
  */
-export function formatRelativeTime(date: Date | null | undefined): string {
-  if (!date) return '';
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+export function formatRelativeTime(date: Date | string | null | undefined): string {
+  const d = toDate(date);
+  if (!d) return '';
+  const seconds = Math.floor((Date.now() - d.getTime()) / 1000);
   if (seconds < 60) return '刚刚';
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes} 分钟前`;

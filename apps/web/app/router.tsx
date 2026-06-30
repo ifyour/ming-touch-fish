@@ -1,3 +1,4 @@
+import { dehydrate, hydrate } from '@tanstack/react-query';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { routeTree } from './routeTree.gen';
@@ -9,11 +10,20 @@ export interface RouterContext {
 
 export function createRouter(options?: { queryClient?: QueryClient; manifest?: unknown }) {
   const { queryClient: queryClientOption, manifest } = options ?? {};
+  const qc = queryClientOption ?? defaultQueryClient;
   return createTanStackRouter({
     routeTree,
     defaultPreload: 'intent',
     context: {
-      queryClient: queryClientOption ?? defaultQueryClient,
+      queryClient: qc,
+    },
+    dehydrate: () => ({
+      dehydratedState: dehydrate(qc),
+    }),
+    hydrate: (data) => {
+      if (data.dehydratedState) {
+        hydrate(qc, data.dehydratedState);
+      }
     },
     ...(manifest ? { manifest } : {}),
   });

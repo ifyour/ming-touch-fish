@@ -3,8 +3,10 @@ import { eq, desc } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { createDb, schema } from '@repo/db';
+import { extract } from '@extractus/feed-extractor';
+import { normalizeUrl } from '@repo/shared';
 import type { SourceInput } from '@repo/shared';
-import type { Bindings, QueueMessage } from '../types';
+import type { Bindings } from '../types';
 
 const createSourceSchema = z.object({
   name: z.string().min(1).max(200),
@@ -90,8 +92,68 @@ app.delete('/:id', async (c) => {
 
 app.post('/:id/fetch', async (c) => {
   const id = Number(c.req.param('id'));
-  await c.env.NEWS_QUEUE.send({ sourceId: id } satisfies QueueMessage);
-  return c.json({ success: true, message: 'Fetch queued' });
+  const db = createDb(c.env.DB);
+
+  const source = await db.select().from(schema.sources).where(eq(schema.sources.id, id)).get();
+  if (!source) return c.json({ error: 'Source not found' }, 404);
+
+  try {
+    const feed = await extract(source.url, {
+      descriptionMaxLen: 500,
+      getExtraEntryFields: (entry) => ({
+        summary: entry['summary'] ?? entry['description'] ?? '',
+        author: entry['author'] ?? entry['creator'] ?? '',
+        categories: entry['categories'] ?? [],
+      }),
+    });
+
+    if (!feed?.entries?.length) {
+      return c.json({ success: true, articles: 0 });
+    }
+
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+    let stored = 0;
+
+    for (const entry of feed.entries) {
+      const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
+      if (publishedTime < cutoff) continue;
+      if (stored >= 10) break;
+
+      const url = normalizeUrl(entry.link ?? '');
+      if (!url) continue;
+
+      const existing = await db
+        .select()
+        .from(schema.articles)
+        .where(eq(schema.articles.url, url))
+        .get();
+      if (existing) continue;
+
+      const title = entry.title ?? 'Untitled';
+      const extra = entry as Record<string, unknown>;
+      await db.insert(schema.articles).values({
+        sourceId: source.id,
+        title,
+        url,
+        publishedAt: new Date(publishedTime),
+        metadata: {
+          description: (extra['summary'] as string) ?? '',
+          author: (extra['author'] as string) ?? '',
+          categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
+        },
+      });
+      stored++;
+    }
+
+    await db
+      .update(schema.sources)
+      .set({ lastFetchedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.sources.id, id));
+
+    return c.json({ success: true, articles: stored });
+  } catch (err) {
+    return c.json({ error: String(err) }, 500);
+  }
 });
 
 export default app;

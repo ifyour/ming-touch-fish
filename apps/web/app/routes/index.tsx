@@ -9,10 +9,12 @@ import { getApiUrl } from '../utils/apiUrl.js';
 export const Route = createFileRoute('/')({
   component: HomePage,
   loader: async ({ context }) => {
-    return context.queryClient.ensureQueryData({
+    const data = await context.queryClient.fetchQuery({
       queryKey: ['articles', 'grouped'],
       queryFn: fetchGroupedArticles,
+      staleTime: 0,
     });
+    return data;
   },
 });
 
