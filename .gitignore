@@ -8,6 +8,7 @@ dist
 .vinxi
 .tanstack-start
 .wrangler
+.turbo
 
 # Environment variables
 .env
