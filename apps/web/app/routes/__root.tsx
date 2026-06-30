@@ -1,6 +1,6 @@
 import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router';
 import { Scripts } from '@tanstack/react-start';
-import { AppShell, Container, Title, Text, Group, Button } from '@mantine/core';
+import { AppShell, Container, Title, Text, Group, Button, ColorSchemeScript } from '@mantine/core';
 import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
@@ -39,6 +39,7 @@ function RootComponent() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <ColorSchemeScript defaultColorScheme="light" />
         <style dangerouslySetInnerHTML={{ __html: mantineCoreCss }} />
         <style dangerouslySetInnerHTML={{ __html: mantineNotificationsCss }} />
       </head>
@@ -46,7 +47,7 @@ function RootComponent() {
         <div id="root">
           <QueryClientProvider client={queryClient}>
             <HydrationBoundary>
-              <MantineProvider theme={theme}>
+              <MantineProvider theme={theme} forceColorScheme="light">
                 <Notifications position="top-right" />
                 <AppShell header={{ height: 60 }} padding="md">
                 <AppShell.Header>
