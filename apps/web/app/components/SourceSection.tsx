@@ -1,6 +1,6 @@
-import { Stack, Title, Text, SimpleGrid } from '@mantine/core';
+import { Stack, Title, Text, Card } from '@mantine/core';
 import type { ArticleGroupedBySource } from '@repo/shared';
-import { ArticleCard } from './ArticleCard.js';
+import { CompactArticleItem } from './CompactArticleItem.js';
 
 interface SourceSectionProps {
   group: ArticleGroupedBySource;
@@ -10,19 +10,21 @@ export function SourceSection({ group }: SourceSectionProps) {
   const { source, articles } = group;
 
   return (
-    <Stack gap="sm">
-      <Title order={4}>{source.name}</Title>
+    <Card withBorder radius="md" padding={0}>
+      <Card.Section withBorder inheritPadding py="sm" px="md">
+        <Title order={5}>{source.name}</Title>
+      </Card.Section>
       {articles.length === 0 ? (
-        <Text c="dimmed" size="sm">
+        <Text c="dimmed" size="sm" py="sm" px="md">
           暂无最近资讯
         </Text>
       ) : (
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+        <Stack gap={0}>
           {articles.map((article) => (
-            <ArticleCard key={article.id} article={article} />
+            <CompactArticleItem key={article.id} article={article} />
           ))}
-        </SimpleGrid>
+        </Stack>
       )}
-    </Stack>
+    </Card>
   );
 }
