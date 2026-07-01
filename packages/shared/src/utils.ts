@@ -29,7 +29,7 @@ export function normalizeUrl(url: string): string {
  */
 export function isLatinText(text: string): boolean {
   if (!text || text.length === 0) return false;
-  const latinCount = (text.match(/[\u0000-\u024F\u1E00-\u1EFF]/g) ?? []).length;
+  const latinCount = (text.match(/[A-Za-z\u00C0-\u024F\u1E00-\u1EFF]/g) ?? []).length;
   return latinCount / text.length > 0.6;
 }
 

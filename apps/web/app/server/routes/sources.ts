@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { createDb, schema } from '@repo/db';
 import { extract } from '@extractus/feed-extractor';
-import { normalizeUrl } from '@repo/shared';
+import { isLatinText, normalizeUrl } from '@repo/shared';
 import type { SourceInput } from '@repo/shared';
 import type { Bindings } from '../types';
 
@@ -90,6 +90,20 @@ app.delete('/:id', async (c) => {
   return c.json({ success: true });
 });
 
+async function translateTitle(ai: Bindings['AI'], title: string): Promise<string | null> {
+  try {
+    const response = await ai.run('@cf/meta/m2m100-1.2b', {
+      text: title,
+      source_lang: 'en',
+      target_lang: 'zh',
+    }) as { translated_text?: string };
+
+    return response?.translated_text?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 app.post('/:id/fetch', async (c) => {
   const id = Number(c.req.param('id'));
   const db = createDb(c.env.DB);
@@ -112,12 +126,17 @@ app.post('/:id/fetch', async (c) => {
     }
 
     const cutoff = Date.now() - 48 * 60 * 60 * 1000;
-    let stored = 0;
+    const pending: Array<{
+      title: string;
+      url: string;
+      publishedAt: Date;
+      metadata: Record<string, unknown>;
+    }> = [];
 
     for (const entry of feed.entries) {
       const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
       if (publishedTime < cutoff) continue;
-      if (stored >= 10) break;
+      if (pending.length >= 10) break;
 
       const url = normalizeUrl(entry.link ?? '');
       if (!url) continue;
@@ -129,11 +148,9 @@ app.post('/:id/fetch', async (c) => {
         .get();
       if (existing) continue;
 
-      const title = entry.title ?? 'Untitled';
       const extra = entry as Record<string, unknown>;
-      await db.insert(schema.articles).values({
-        sourceId: source.id,
-        title,
+      pending.push({
+        title: entry.title ?? 'Untitled',
         url,
         publishedAt: new Date(publishedTime),
         metadata: {
@@ -142,7 +159,23 @@ app.post('/:id/fetch', async (c) => {
           categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
         },
       });
-      stored++;
+    }
+
+    const translated = await Promise.all(
+      pending.map((a) =>
+        isLatinText(a.title) ? translateTitle(c.env.AI, a.title) : Promise.resolve(null)
+      )
+    );
+
+    for (let i = 0; i < pending.length; i++) {
+      await db.insert(schema.articles).values({
+        sourceId: source.id,
+        title: pending[i].title,
+        translatedTitle: translated[i],
+        url: pending[i].url,
+        publishedAt: pending[i].publishedAt,
+        metadata: pending[i].metadata,
+      });
     }
 
     await db
@@ -150,7 +183,7 @@ app.post('/:id/fetch', async (c) => {
       .set({ lastFetchedAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.sources.id, id));
 
-    return c.json({ success: true, articles: stored });
+    return c.json({ success: true, articles: pending.length });
   } catch (err) {
     return c.json({ error: String(err) }, 500);
   }
