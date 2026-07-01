@@ -63,7 +63,7 @@ function RootComponent() {
                         </Link>
                       </Title>
                       <Text size="xs" c="dimmed" fw={500}>
-                        SlackFish News
+                        TouchFish News
                       </Text>
                     </Group>
                     <Group>
