@@ -1,7 +1,7 @@
 import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/workers-types';
 import type { Bindings } from './types';
 
-class MockPreparedStatement implements D1PreparedStatement {
+class MockPreparedStatement {
   private sql: string;
   private params: unknown[] = [];
 
@@ -11,7 +11,7 @@ class MockPreparedStatement implements D1PreparedStatement {
 
   bind(...values: unknown[]): D1PreparedStatement {
     this.params = values;
-    return this;
+    return this as unknown as D1PreparedStatement;
   }
 
   async run<T = Record<string, unknown>>(): Promise<D1Result<T>> {
@@ -22,26 +22,29 @@ class MockPreparedStatement implements D1PreparedStatement {
     return { success: true, meta: { duration: 0, size_after: 0, rows_read: 0, rows_written: 0, last_row_id: 0, changed_db: false, changes: 0 }, results: [] };
   }
 
-  async raw<T = unknown[]>(): Promise<T[]> {
-    return [];
+  raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
+  raw<T = unknown[]>(options?: { columnNames?: false }): Promise<T[]>;
+  async raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
+    if (options?.columnNames) {
+      return [[] as string[]] as [string[], ...T[]];
+    }
+    return [] as T[];
   }
 
-  async first<T = Record<string, unknown>>(): Promise<T | null> {
+  first<T = unknown>(_colName: string): Promise<T | null>;
+  first<T = Record<string, unknown>>(): Promise<T | null>;
+  async first<T = Record<string, unknown>>(_colName?: string): Promise<T | null> {
     return null;
   }
 }
 
 class MockD1Database implements D1Database {
   prepare(query: string): D1PreparedStatement {
-    return new MockPreparedStatement(query);
+    return new MockPreparedStatement(query) as unknown as D1PreparedStatement;
   }
 
-  async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
-    return statements.map(() => ({
-      success: true as const,
-      meta: { duration: 0, size_after: 0, rows_read: 0, rows_written: 0, last_row_id: 0, changed_db: false, changes: 0 },
-      results: [] as T[],
-    }));
+  async batch<T = unknown>(_statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
+    return [];
   }
 
   async exec(_query: string): Promise<{ count: number; duration: number }> {

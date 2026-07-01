@@ -42,7 +42,7 @@ app.get('/grouped', async (c) => {
       and(eq(schema.articles.sourceId, schema.sources.id), gte(schema.articles.publishedAt, cutoff))
     )
     .where(eq(schema.sources.isActive, true))
-    .orderBy(desc(schema.sources.priority), desc(schema.articles.publishedAt));
+    .orderBy(desc(schema.sources.priority), desc(schema.sources.createdAt), desc(schema.articles.publishedAt));
 
   const grouped = new Map<number, { source: typeof schema.sources.$inferSelect; articles: typeof schema.articles.$inferSelect[] }>();
 

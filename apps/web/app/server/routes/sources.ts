@@ -210,7 +210,7 @@ app.post('/:id/fetch', async (c) => {
         .get();
       if (existing) continue;
 
-      const extra = entry as Record<string, unknown>;
+      const extra = entry as unknown as Record<string, unknown>;
       pending.push({
         title: entry.title ?? 'Untitled',
         url,

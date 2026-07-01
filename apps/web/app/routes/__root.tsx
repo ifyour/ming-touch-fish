@@ -3,7 +3,7 @@ import { Scripts } from '@tanstack/react-start';
 import { AppShell, Container, Title, Text, Group, Button, ColorSchemeScript } from '@mantine/core';
 import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { RouterContext } from '../router';
 import { queryClient } from '../queryClient';
 import mantineCoreCss from '@mantine/core/styles.css?inline';
@@ -47,7 +47,6 @@ function RootComponent() {
       <body>
         <div id="root">
           <QueryClientProvider client={queryClient}>
-            <HydrationBoundary>
               <MantineProvider theme={theme} forceColorScheme="light">
                 <Notifications position="top-right" />
                 <AppShell header={{ height: 60 }} padding="md">
@@ -57,11 +56,16 @@ function RootComponent() {
                     h="100%"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                   >
-                    <Title order={3}>
-                      <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        资讯聚合
-                      </Link>
-                    </Title>
+                    <Group gap="xs">
+                      <Title order={3}>
+                        <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+                          摸鱼资讯
+                        </Link>
+                      </Title>
+                      <Text size="xs" c="dimmed" fw={500}>
+                        SlackFish News
+                      </Text>
+                    </Group>
                     <Group>
                       <Button component={Link} to="/" variant="subtle">
                         首页
@@ -77,7 +81,6 @@ function RootComponent() {
                 </AppShell.Main>
               </AppShell>
             </MantineProvider>
-          </HydrationBoundary>
           </QueryClientProvider>
         </div>
         <Scripts />
