@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
 import { useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
@@ -12,21 +12,36 @@ import {
   Title,
   Text,
   Badge,
+  NavLink,
+  ScrollArea,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconRefresh, IconTrash, IconEdit } from '@tabler/icons-react';
+import {
+  IconPlus, IconRefresh, IconTrash, IconEdit, IconRss,
+} from '@tabler/icons-react';
 import type { Source, SourceInput } from '@repo/shared';
 import { SourceForm } from '../components/SourceForm.js';
 import { getApiUrl } from '../utils/apiUrl.js';
+import { z } from 'zod';
+
+const adminTabs = [
+  { value: 'sources', label: '资讯源管理', icon: IconRss },
+] as const;
+
+const adminTabSchema = z.enum(['sources']).default('sources');
 
 export const Route = createFileRoute('/admin')({
   component: AdminPage,
-  loader: async ({ context }) => {
-    return context.queryClient.ensureQueryData({
-      queryKey: ['sources'],
-      queryFn: fetchSources,
-    });
+  validateSearch: z.object({ tab: adminTabSchema }),
+  loaderDeps: ({ search: { tab } }) => ({ tab }),
+  loader: async ({ context, deps }) => {
+    if (deps.tab === 'sources') {
+      return context.queryClient.ensureQueryData({
+        queryKey: ['sources'],
+        queryFn: fetchSources,
+      });
+    }
   },
 });
 
@@ -37,6 +52,8 @@ async function fetchSources(): Promise<Source[]> {
 }
 
 function AdminPage() {
+  const { tab } = useSearch({ from: '/admin' });
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [editingSource, setEditingSource] = useState<Source | undefined>(undefined);
@@ -160,127 +177,163 @@ function AdminPage() {
     }
   };
 
-  const rows = sources?.map((source) => (
-    <Table.Tr key={source.id}>
-      <Table.Td>{source.name}</Table.Td>
-      <Table.Td>
-        <Text size="sm" lineClamp={1} style={{ maxWidth: 240 }}>
-          {source.url}
-        </Text>
-      </Table.Td>
-      <Table.Td>{source.priority}</Table.Td>
-      <Table.Td>
-        <Badge variant="light">{source.fetchFrequency}</Badge>
-      </Table.Td>
-      <Table.Td>
-        <Badge color={source.isActive ? 'green' : 'gray'}>
-          {source.isActive ? '启用' : '停用'}
-        </Badge>
-      </Table.Td>
-      <Table.Td>
-        <Text size="sm" c="dimmed">
-          {source.lastFetchedAt
-            ? new Date(source.lastFetchedAt).toLocaleString('zh-CN')
-            : '从未'}
-        </Text>
-      </Table.Td>
-      <Table.Td>
-        <Group gap="xs">
-          <Button
-            size="xs"
-            variant="light"
-            disabled={isFetchingSource(source.id)}
-            leftSection={
-              <IconRefresh
-                size={14}
-                style={isFetchingSource(source.id) ? { animation: 'spin 1s linear infinite' } : undefined}
-              />
-            }
-            onClick={() => fetchMutation.mutate(source.id)}
-          >
-            抓取
-          </Button>
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconEdit size={14} />}
-            onClick={() => openEdit(source)}
-          >
-            编辑
-          </Button>
-          <Button
-            size="xs"
-            color="red"
-            variant="light"
-            leftSection={<IconTrash size={14} />}
-            onClick={() => setDeletingSource(source)}
-          >
-            删除
-          </Button>
-        </Group>
-      </Table.Td>
-    </Table.Tr>
-  ));
-
   return (
     <>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-      <Stack gap="md" py="md" pos="relative">
-      <LoadingOverlay visible={isLoading} />
-      <Group justify="space-between">
-        <Title order={2}>资讯源管理</Title>
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-          添加资讯源
-        </Button>
-      </Group>
-
-      <Card withBorder>
-        <Table highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>名称</Table.Th>
-              <Table.Th>URL</Table.Th>
-              <Table.Th>优先级</Table.Th>
-              <Table.Th>频率</Table.Th>
-              <Table.Th>状态</Table.Th>
-              <Table.Th>上次抓取</Table.Th>
-              <Table.Th>操作</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>{rows}</Table.Tbody>
-        </Table>
-      </Card>
-
-      <Modal opened={opened} onClose={closeForm} title={editingSource ? '编辑资讯源' : '添加资讯源'}>
-        <SourceForm source={editingSource} onSubmit={handleSubmit} onCancel={closeForm} />
-      </Modal>
-
-      <Modal
-        opened={!!deletingSource}
-        onClose={() => setDeletingSource(undefined)}
-        title="确认删除"
-        size="sm"
+      <Group
+        align="flex-start"
+        gap={0}
+        style={{ minHeight: 'calc(100vh - 80px)' }}
       >
-        <Text size="sm" mb="lg">
-          确定要删除「{deletingSource?.name}」吗？该操作不可撤销。
-        </Text>
-        <Group justify="flex-end" gap="sm">
-          <Button variant="default" onClick={() => setDeletingSource(undefined)}>
-            取消
-          </Button>
-          <Button
-            color="red"
-            loading={deleteMutation.isPending}
-            onClick={() => {
-              if (deletingSource) deleteMutation.mutate(deletingSource.id);
-              setDeletingSource(undefined);
-            }}
-          >
-            删除
-          </Button>
-        </Group>
-      </Modal>
-    </Stack>
+        <Stack
+          w={220}
+          gap={0}
+          py="md"
+          style={{
+            borderRight: '1px solid var(--mantine-color-gray-2)',
+            flexShrink: 0,
+            alignSelf: 'stretch',
+          }}
+        >
+          {adminTabs.map((item) => (
+            <NavLink
+              key={item.value}
+              label={item.label}
+              leftSection={<item.icon size={18} />}
+              active={tab === item.value}
+              onClick={() => navigate({ to: '/admin', search: { tab: item.value } })}
+              variant="light"
+              style={{ borderRadius: 0 }}
+            />
+          ))}
+        </Stack>
+
+        <ScrollArea style={{ flex: 1, alignSelf: 'stretch' }}>
+          <Stack gap="md" p="md">
+            {tab === 'sources' && (
+              <>
+                <Group justify="space-between">
+                  <Title order={3}>资讯源管理</Title>
+                  <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+                    添加资讯源
+                  </Button>
+                </Group>
+
+                <LoadingOverlay visible={isLoading} />
+
+                <Card withBorder>
+                  <Table highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>名称</Table.Th>
+                        <Table.Th>URL</Table.Th>
+                        <Table.Th>优先级</Table.Th>
+                        <Table.Th>频率</Table.Th>
+                        <Table.Th>状态</Table.Th>
+                        <Table.Th>上次抓取</Table.Th>
+                        <Table.Th>操作</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {sources?.map((source) => (
+                        <Table.Tr key={source.id}>
+                          <Table.Td>{source.name}</Table.Td>
+                          <Table.Td>
+                            <Text size="sm" lineClamp={1} style={{ maxWidth: 240 }}>
+                              {source.url}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>{source.priority}</Table.Td>
+                          <Table.Td>
+                            <Badge variant="light">{source.fetchFrequency}</Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge color={source.isActive ? 'green' : 'gray'}>
+                              {source.isActive ? '启用' : '停用'}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" c="dimmed">
+                              {source.lastFetchedAt
+                                ? new Date(source.lastFetchedAt).toLocaleString('zh-CN')
+                                : '从未'}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap="xs">
+                              <Button
+                                size="xs"
+                                variant="light"
+                                disabled={isFetchingSource(source.id)}
+                                leftSection={
+                                  <IconRefresh
+                                    size={14}
+                                    style={isFetchingSource(source.id) ? { animation: 'spin 1s linear infinite' } : undefined}
+                                  />
+                                }
+                                onClick={() => fetchMutation.mutate(source.id)}
+                              >
+                                抓取
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="default"
+                                leftSection={<IconEdit size={14} />}
+                                onClick={() => openEdit(source)}
+                              >
+                                编辑
+                              </Button>
+                              <Button
+                                size="xs"
+                                color="red"
+                                variant="light"
+                                leftSection={<IconTrash size={14} />}
+                                onClick={() => setDeletingSource(source)}
+                              >
+                                删除
+                              </Button>
+                            </Group>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Card>
+
+                <Modal opened={opened} onClose={closeForm} title={editingSource ? '编辑资讯源' : '添加资讯源'}>
+                  <SourceForm source={editingSource} onSubmit={handleSubmit} onCancel={closeForm} />
+                </Modal>
+
+                <Modal
+                  opened={!!deletingSource}
+                  onClose={() => setDeletingSource(undefined)}
+                  title="确认删除"
+                  size="sm"
+                >
+                  <Text size="sm" mb="lg">
+                    确定要删除「{deletingSource?.name}」吗？该操作不可撤销。
+                  </Text>
+                  <Group justify="flex-end" gap="sm">
+                    <Button variant="default" onClick={() => setDeletingSource(undefined)}>
+                      取消
+                    </Button>
+                    <Button
+                      color="red"
+                      loading={deleteMutation.isPending}
+                      onClick={() => {
+                        if (deletingSource) deleteMutation.mutate(deletingSource.id);
+                        setDeletingSource(undefined);
+                      }}
+                    >
+                      删除
+                    </Button>
+                  </Group>
+                </Modal>
+              </>
+            )}
+          </Stack>
+        </ScrollArea>
+      </Group>
     </>
   );
 }
