@@ -8,6 +8,25 @@ import { isLatinText, normalizeUrl } from '@repo/shared';
 import type { SourceInput } from '@repo/shared';
 import type { Bindings } from '../types';
 
+function normalizeInputUrl(raw: string): string | null {
+  let url = raw.trim();
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  try { return new URL(url).href; } catch { return null; }
+}
+
+async function isFeed(url: string, signal?: AbortSignal): Promise<boolean> {
+  try {
+    const res = await fetch(url, { signal });
+    if (!res.ok) return false;
+    const text = await res.text();
+    return /<(rss|feed|rdf:RDF)\b/i.test(text);
+  } catch {
+    return false;
+  }
+}
+
+const FEED_PATHS = ['/feed', '/feed.xml', '/rss', '/rss.xml', '/atom.xml', '/index.xml'];
+
 const createSourceSchema = z.object({
   name: z.string().min(1).max(200),
   url: z.string().url(),
@@ -25,6 +44,49 @@ const updateSourceSchema = z.object({
 });
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+app.post('/detect', zValidator('json', z.object({ url: z.string() })), async (c) => {
+  const { url } = c.req.valid('json');
+  const normalized = normalizeInputUrl(url);
+  if (!normalized) return c.json({ feedUrl: null });
+
+  let parsed: URL;
+  try { parsed = new URL(normalized); } catch { return c.json({ feedUrl: null }); }
+
+  const candidates = new Set<string>();
+  candidates.add(normalized);
+
+  const origin = parsed.origin;
+  for (const p of FEED_PATHS) candidates.add(new URL(p, origin).href);
+
+  const base = parsed.pathname.replace(/\/$/, '');
+  if (base && base !== '/') {
+    for (const p of FEED_PATHS) candidates.add(new URL(base + p, origin).href);
+  }
+
+  try {
+    const res = await fetch(normalized, { signal: AbortSignal.timeout(6000) });
+    const html = await res.text();
+    const re = /<link[^>]*?rel=["']alternate["'][^>]*?type=["']application\/(?:rss|atom)\+xml["'][^>]*?href=["']([^"']+)["']/gi;
+    const re2 = /<link[^>]*?type=["']application\/(?:rss|atom)\+xml["'][^>]*?rel=["']alternate["'][^>]*?href=["']([^"']+)["']/gi;
+    for (const r of [re, re2]) {
+      for (const m of html.matchAll(r)) {
+        try { candidates.add(new URL(m[1], normalized).href); } catch {}
+      }
+    }
+  } catch {}
+
+  for (const candidate of candidates) {
+    try {
+      if (await isFeed(candidate, AbortSignal.timeout(5000))) {
+        const feed = await extract(candidate).catch(() => null);
+        return c.json({ feedUrl: candidate, sourceName: feed?.title || null });
+      }
+    } catch {}
+  }
+
+  return c.json({ feedUrl: null, sourceName: null });
+});
 
 app.get('/', async (c) => {
   const db = createDb(c.env.DB);
