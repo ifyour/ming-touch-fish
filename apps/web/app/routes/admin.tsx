@@ -40,6 +40,7 @@ function AdminPage() {
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [editingSource, setEditingSource] = useState<Source | undefined>(undefined);
+  const [deletingSource, setDeletingSource] = useState<Source | undefined>(undefined);
 
   const { data: sources, isLoading } = useSuspenseQuery({
     queryKey: ['sources'],
@@ -202,7 +203,7 @@ function AdminPage() {
             color="red"
             variant="light"
             leftSection={<IconTrash size={14} />}
-            onClick={() => deleteMutation.mutate(source.id)}
+            onClick={() => setDeletingSource(source)}
           >
             删除
           </Button>
@@ -240,6 +241,32 @@ function AdminPage() {
 
       <Modal opened={opened} onClose={closeForm} title={editingSource ? '编辑资讯源' : '添加资讯源'}>
         <SourceForm source={editingSource} onSubmit={handleSubmit} onCancel={closeForm} />
+      </Modal>
+
+      <Modal
+        opened={!!deletingSource}
+        onClose={() => setDeletingSource(undefined)}
+        title="确认删除"
+        size="sm"
+      >
+        <Text size="sm" mb="lg">
+          确定要删除「{deletingSource?.name}」吗？该操作不可撤销。
+        </Text>
+        <Group justify="flex-end" gap="sm">
+          <Button variant="default" onClick={() => setDeletingSource(undefined)}>
+            取消
+          </Button>
+          <Button
+            color="red"
+            loading={deleteMutation.isPending}
+            onClick={() => {
+              if (deletingSource) deleteMutation.mutate(deletingSource.id);
+              setDeletingSource(undefined);
+            }}
+          >
+            删除
+          </Button>
+        </Group>
       </Modal>
     </Stack>
   );
