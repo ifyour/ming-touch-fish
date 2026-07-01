@@ -1,5 +1,6 @@
 name = "news-aggregator-web"
 compatibility_date = "2026-06-29"
+pages_build_output_dir = "dist"
 
 [[d1_databases]]
 binding = "DB"
