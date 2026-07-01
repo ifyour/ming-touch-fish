@@ -69,10 +69,7 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
     detectStatus === 'not_found' ? '未探测到 RSS 源，可手动输入完整订阅地址' :
     undefined;
 
-  const urlError =
-    detectStatus === 'not_found'
-      ? '未探测到 RSS 源，请确认网址正确，或手动输入 RSS 订阅地址'
-      : undefined;
+  const urlError = undefined;
 
   return (
     <form onSubmit={form.onSubmit(onSubmit)}>
