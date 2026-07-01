@@ -117,10 +117,15 @@ function AdminPage() {
         const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
-      return res.json();
+      return res.json() as Promise<{ success: boolean; articles: number }>;
     },
-    onSuccess: () => {
-      notifications.show({ title: '成功', message: '抓取任务已入队', color: 'blue' });
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      notifications.show({
+        title: '抓取完成',
+        message: data.articles > 0 ? `成功获取 ${data.articles} 篇文章` : '没有新文章',
+        color: data.articles > 0 ? 'green' : 'blue',
+      });
     },
     onError: (err: Error) => {
       notifications.show({ title: '失败', message: err.message, color: 'red' });
@@ -166,6 +171,13 @@ function AdminPage() {
         <Badge color={source.isActive ? 'green' : 'gray'}>
           {source.isActive ? '启用' : '停用'}
         </Badge>
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm" c="dimmed">
+          {source.lastFetchedAt
+            ? new Date(source.lastFetchedAt).toLocaleString('zh-CN')
+            : '从未'}
+        </Text>
       </Table.Td>
       <Table.Td>
         <Group gap="xs">
@@ -218,6 +230,7 @@ function AdminPage() {
               <Table.Th>优先级</Table.Th>
               <Table.Th>频率</Table.Th>
               <Table.Th>状态</Table.Th>
+              <Table.Th>上次抓取</Table.Th>
               <Table.Th>操作</Table.Th>
             </Table.Tr>
           </Table.Thead>
