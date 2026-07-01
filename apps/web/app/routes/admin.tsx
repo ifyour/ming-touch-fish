@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
-import { useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Card,
@@ -59,9 +59,10 @@ function AdminPage() {
   const [editingSource, setEditingSource] = useState<Source | undefined>(undefined);
   const [deletingSource, setDeletingSource] = useState<Source | undefined>(undefined);
 
-  const { data: sources, isLoading } = useSuspenseQuery({
+  const { data: sources, isLoading } = useQuery({
     queryKey: ['sources'],
     queryFn: fetchSources,
+    staleTime: 5 * 60 * 1000,
   });
 
   const createMutation = useMutation({

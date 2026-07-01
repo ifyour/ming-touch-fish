@@ -5,7 +5,6 @@ import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { RouterContext } from '../router';
-import { queryClient } from '../queryClient';
 import mantineCoreCss from '@mantine/core/styles.css?inline';
 import mantineNotificationsCss from '@mantine/notifications/styles.css?inline';
 
@@ -34,6 +33,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootComponent() {
+  const { queryClient } = Route.useRouteContext();
   return (
     <html lang="zh-CN">
       <head>
