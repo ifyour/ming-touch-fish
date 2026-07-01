@@ -213,9 +213,8 @@ function AdminPage() {
           <Stack gap="md" p="md">
             {tab === 'sources' && (
               <>
-                <Group justify="space-between">
-                  <Title order={3}>资讯源管理</Title>
-                  <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+                <Group justify="flex-end">
+                  <Button leftSection={<IconPlus size={16} />} onClick={openCreate} size="xs">
                     添加资讯源
                   </Button>
                 </Group>
@@ -227,8 +226,8 @@ function AdminPage() {
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>名称</Table.Th>
-                        <Table.Th>URL</Table.Th>
-                        <Table.Th>优先级</Table.Th>
+                        <Table.Th>RSS</Table.Th>
+                        {/* <Table.Th>优先级</Table.Th> */}
                         <Table.Th>频率</Table.Th>
                         <Table.Th>状态</Table.Th>
                         <Table.Th>上次抓取</Table.Th>
@@ -244,7 +243,7 @@ function AdminPage() {
                               {source.url}
                             </Text>
                           </Table.Td>
-                          <Table.Td>{source.priority}</Table.Td>
+                          {/* <Table.Td>{source.priority}</Table.Td> */}
                           <Table.Td>
                             <Badge variant="light">{source.fetchFrequency}</Badge>
                           </Table.Td>
