@@ -46,7 +46,7 @@ function HomePage() {
   }
 
   return (
-    <Container size="md">
+    <Container size="xl">
       <Title order={3} py="md">今日热点</Title>
       {groups?.length === 0 ? (
         <Alert>暂无资讯，请先添加资讯源并运行抓取。</Alert>
