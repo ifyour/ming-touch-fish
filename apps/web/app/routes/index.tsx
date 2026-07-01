@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { SimpleGrid, Title, Loader, Alert } from '@mantine/core';
+import { SimpleGrid, Title, Loader, Alert, Container } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import type { ArticleGroupedBySource } from '@repo/shared';
 import { SourceSection } from '../components/SourceSection.js';
@@ -46,7 +46,7 @@ function HomePage() {
   }
 
   return (
-    <>
+    <Container size="xl">
       <Title order={3} py="md">今日热点</Title>
       {groups?.length === 0 ? (
         <Alert>暂无资讯，请先添加资讯源并运行抓取。</Alert>
@@ -55,6 +55,6 @@ function HomePage() {
           {groups?.map((group) => <SourceSection key={group.source.id} group={group} />)}
         </SimpleGrid>
       )}
-    </>
+    </Container>
   );
 }

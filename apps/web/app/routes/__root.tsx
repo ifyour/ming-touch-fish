@@ -73,9 +73,7 @@ function RootComponent() {
                   </Container>
                 </AppShell.Header>
                 <AppShell.Main>
-                  <Container size="xl">
-                    <Outlet />
-                  </Container>
+                  <Outlet />
                 </AppShell.Main>
               </AppShell>
             </MantineProvider>
