@@ -300,7 +300,7 @@ function AdminPage() {
                   </Table>
                 </Card>
 
-                <Modal opened={opened} onClose={closeForm} title={editingSource ? '编辑资讯源' : '添加资讯源'}>
+                <Modal opened={opened} onClose={closeForm} title={editingSource ? '编辑资讯源' : '添加资讯源'} centered>
                   <SourceForm source={editingSource} onSubmit={handleSubmit} onCancel={closeForm} />
                 </Modal>
 
@@ -309,6 +309,7 @@ function AdminPage() {
                   onClose={() => setDeletingSource(undefined)}
                   title="确认删除"
                   size="sm"
+                  centered
                 >
                   <Text size="sm" mb="lg">
                     确定要删除「{deletingSource?.name}」吗？该操作不可撤销。
