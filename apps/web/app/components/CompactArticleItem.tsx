@@ -26,7 +26,8 @@ export function CompactArticleItem({ article }: CompactArticleItemProps) {
         rel="noopener noreferrer"
         size="sm"
         lineClamp={1}
-        style={{ flex: 1, minWidth: 0, textDecoration: 'none', color: 'inherit' }}
+        className="article-link"
+        style={{ flex: 1, minWidth: 0 }}
       >
         {displayTitle}
       </Text>

@@ -22,7 +22,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
             rel="noopener noreferrer"
             fw={600}
             lineClamp={2}
-            style={{ textDecoration: 'none', color: 'inherit' }}
+            className="article-link"
           >
             {displayTitle}
           </Text>

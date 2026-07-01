@@ -42,6 +42,7 @@ function RootComponent() {
         <ColorSchemeScript defaultColorScheme="light" />
         <style dangerouslySetInnerHTML={{ __html: mantineCoreCss }} />
         <style dangerouslySetInnerHTML={{ __html: mantineNotificationsCss }} />
+        <style>{`.article-link{color:inherit;text-decoration:none}.article-link:visited{color:var(--mantine-color-gray-5)}`}</style>
       </head>
       <body>
         <div id="root">
