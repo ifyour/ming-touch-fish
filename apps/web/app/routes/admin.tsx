@@ -48,7 +48,7 @@ function AdminPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (values: SourceInput) => {
+    mutationFn: async (values: SourceInput): Promise<Source> => {
       const res = await fetch(await getApiUrl('/api/sources'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,12 +58,13 @@ function AdminPage() {
         const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
-      return res.json();
+      return res.json() as Promise<Source>;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['sources'] });
       closeForm();
       notifications.show({ title: '成功', message: '资讯源已添加', color: 'green' });
+      fetchMutation.mutate(data.id);
     },
     onError: (err: Error) => {
       notifications.show({ title: '失败', message: err.message, color: 'red' });
@@ -122,6 +123,7 @@ function AdminPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['sources'] });
+      queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
       notifications.show({
         title: '抓取完成',
         message: data.articles > 0 ? `成功获取 ${data.articles} 篇文章` : '没有新文章',
@@ -132,6 +134,8 @@ function AdminPage() {
       notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
+
+  const isFetchingSource = (id: number) => fetchMutation.isPending && fetchMutation.variables === id;
 
   const openCreate = () => {
     setEditingSource(undefined);
@@ -185,7 +189,13 @@ function AdminPage() {
           <Button
             size="xs"
             variant="light"
-            leftSection={<IconRefresh size={14} />}
+            disabled={isFetchingSource(source.id)}
+            leftSection={
+              <IconRefresh
+                size={14}
+                style={isFetchingSource(source.id) ? { animation: 'spin 1s linear infinite' } : undefined}
+              />
+            }
             onClick={() => fetchMutation.mutate(source.id)}
           >
             抓取
@@ -213,7 +223,9 @@ function AdminPage() {
   ));
 
   return (
-    <Stack gap="md" py="md" pos="relative">
+    <>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <Stack gap="md" py="md" pos="relative">
       <LoadingOverlay visible={isLoading} />
       <Group justify="space-between">
         <Title order={2}>资讯源管理</Title>
@@ -269,5 +281,6 @@ function AdminPage() {
         </Group>
       </Modal>
     </Stack>
+    </>
   );
 }

@@ -23,7 +23,7 @@ app.get('/', async (c) => {
     .limit(limit)
     .offset(offset);
 
-  c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+  c.header('Cache-Control', 'no-cache, no-store');
   return c.json(articles);
 });
 
@@ -61,7 +61,7 @@ app.get('/grouped', async (c) => {
     articles: group.articles.slice(0, 10),
   }));
 
-  c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+  c.header('Cache-Control', 'no-cache, no-store');
   return c.json(result);
 });
 

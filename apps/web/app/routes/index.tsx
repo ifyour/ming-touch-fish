@@ -19,7 +19,7 @@ export const Route = createFileRoute('/')({
 });
 
 async function fetchGroupedArticles(): Promise<ArticleGroupedBySource[]> {
-  const response = await fetch(await getApiUrl('/api/articles/grouped'));
+  const response = await fetch(await getApiUrl('/api/articles/grouped'), { cache: 'no-store' });
   if (!response.ok) {
     throw new Error('Failed to load articles');
   }
@@ -30,6 +30,7 @@ function HomePage() {
   const { data: groups, error, isLoading } = useSuspenseQuery({
     queryKey: ['articles', 'grouped'],
     queryFn: fetchGroupedArticles,
+    staleTime: 0,
   });
 
   if (isLoading) {

@@ -33,7 +33,7 @@ app.get('/', async (c) => {
     .from(schema.sources)
     .orderBy(desc(schema.sources.priority), desc(schema.sources.createdAt));
 
-  c.header('Cache-Control', 'public, max-age=60');
+  c.header('Cache-Control', 'no-cache, no-store');
   return c.json(sources);
 });
 
