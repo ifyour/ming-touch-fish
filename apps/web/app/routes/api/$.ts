@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+import { resolve, dirname } from 'node:path';
 import { createAPIFileRoute } from '@tanstack/react-start/api';
 import { getEvent } from '@tanstack/react-start/server';
 import honoApp from '../../server/app';
@@ -15,7 +17,7 @@ async function getDevBindings(): Promise<Bindings> {
   if (devBindings) return devBindings;
   try {
     const { getBindingsProxy } = await import('wrangler');
-    const proxy = await getBindingsProxy({ configPath: '/Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/wrangler.toml' });
+    const proxy = await getBindingsProxy({ configPath: resolve(dirname(fileURLToPath(import.meta.url)), '../../wrangler.toml') });
     devBindings = proxy.bindings as unknown as Bindings;
     return devBindings;
   } catch {
