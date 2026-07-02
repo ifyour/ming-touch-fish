@@ -101,7 +101,9 @@ function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: Sortable
         </Text>
       </Table.Td>
       <Table.Td>
-        <Badge variant="light">{source.fetchFrequency}</Badge>
+        <Badge variant="light">
+          {({ hourly: '每小时', twice_daily: '每 12 小时', daily: '每天' } as Record<string, string>)[source.fetchFrequency] ?? source.fetchFrequency}
+        </Badge>
       </Table.Td>
       <Table.Td>
         <Badge color={source.isActive ? 'green' : 'gray'}>
