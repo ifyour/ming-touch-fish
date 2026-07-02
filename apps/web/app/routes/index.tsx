@@ -8,14 +8,6 @@ import { getApiUrl } from '../utils/apiUrl.js';
 
 export const Route = createFileRoute('/')({
   component: HomePage,
-  loader: async ({ context }) => {
-    const data = await context.queryClient.fetchQuery({
-      queryKey: ['articles', 'grouped'],
-      queryFn: fetchGroupedArticles,
-      staleTime: 0,
-    });
-    return data;
-  },
 });
 
 async function fetchGroupedArticles(): Promise<ArticleGroupedBySource[]> {
