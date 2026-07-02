@@ -5,6 +5,7 @@
   "description": "Personal news aggregator powered by Cloudflare, TanStack Start, Hono, and D1",
   "scripts": {
     "build": "turbo run build",
+    "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=@repo/web",
     "dev:fetcher": "turbo run dev --filter=@repo/fetcher",
     "db:generate": "turbo run db:generate --filter=@repo/db",
