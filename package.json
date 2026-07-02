@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Personal news aggregator powered by Cloudflare, TanStack Start, Hono, and D1",
   "scripts": {
+    "cleanup": "lsof -ti @localhost:3000,@localhost:8787 | xargs kill -9 2>/dev/null; pkill -f 'workerd.*ming-touch-fish' 2>/dev/null; pkill -f 'esbuild.*ming-touch-fish' 2>/dev/null; echo 'done'",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=@repo/web",
