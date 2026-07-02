@@ -40,6 +40,7 @@ function HomePage() {
     queryKey: ['articles', 'grouped'],
     queryFn: fetchGroupedArticles,
     staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading) {
