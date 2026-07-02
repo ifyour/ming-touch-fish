@@ -224,6 +224,68 @@ async function translateTitle(ai: Bindings['AI'], title: string): Promise<string
   }
 }
 
+app.post('/fetch-all', async (c) => {
+  const db = createDb(c.env.DB);
+  const sources = await db.select().from(schema.sources).where(eq(schema.sources.isActive, true));
+
+  let total = 0;
+  for (const source of sources) {
+    try {
+      const feed = await fetchFeed(source.url);
+      if (!feed?.entries?.length) continue;
+
+      const pending: Array<{
+        title: string; url: string; publishedAt: Date; metadata: Record<string, unknown>;
+      }> = [];
+
+      for (const entry of feed.entries) {
+        const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
+        if (pending.length >= 10) break;
+        const url = normalizeUrl(entry.link ?? '');
+        if (!url) continue;
+        const existing = await db.select().from(schema.articles).where(eq(schema.articles.url, url)).get();
+        if (existing) continue;
+        const extra = entry as unknown as Record<string, unknown>;
+        pending.push({
+          title: entry.title ?? 'Untitled',
+          url,
+          publishedAt: new Date(publishedTime),
+          metadata: {
+            description: (extra['summary'] as string) ?? '',
+            author: (extra['author'] as string) ?? '',
+            categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
+          },
+        });
+      }
+
+      const translated = await Promise.all(
+        pending.map((a) => isLatinText(a.title) ? translateTitle(c.env.AI, a.title) : Promise.resolve(null))
+      );
+
+      for (let i = 0; i < pending.length; i++) {
+        await db.insert(schema.articles).values({
+          sourceId: source.id,
+          title: pending[i].title,
+          translatedTitle: translated[i],
+          url: pending[i].url,
+          publishedAt: pending[i].publishedAt,
+          metadata: pending[i].metadata,
+        });
+      }
+
+      await db
+        .update(schema.sources)
+        .set({ lastFetchedAt: new Date(), updatedAt: new Date() })
+        .where(eq(schema.sources.id, source.id));
+
+      total += pending.length;
+    } catch (err) {
+      console.error(`Fetch-all failed for ${source.name}:`, err);
+    }
+  }
+  return c.json({ success: true, totalFetched: total });
+});
+
 app.post('/:id/fetch', async (c) => {
   const id = Number(c.req.param('id'));
   const db = createDb(c.env.DB);

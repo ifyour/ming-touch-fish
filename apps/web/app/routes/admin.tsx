@@ -129,7 +129,7 @@ function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: Sortable
             }
             onClick={onFetch}
           >
-            抓取
+            更新
           </Button>
           <Button
             size="xs"
@@ -305,6 +305,26 @@ function AdminPage() {
     },
   });
 
+  const fetchAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(await getApiUrl('/api/sources/fetch-all'), { method: 'POST' });
+      if (!res.ok) throw new Error('一键刷新失败');
+      return res.json() as Promise<{ success: boolean; totalFetched: number }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
+      notifications.show({
+        title: '刷新完成',
+        message: data.totalFetched > 0 ? `获取到 ${data.totalFetched} 篇新文章` : '没有新文章',
+        color: data.totalFetched > 0 ? 'green' : 'blue',
+      });
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
+    },
+  });
+
   const isFetchingSource = (id: number) => fetchMutation.isPending && fetchMutation.variables === id;
 
   const openCreate = () => {
@@ -366,6 +386,15 @@ function AdminPage() {
             {tab === 'sources' && (
               <>
                 <Group justify="flex-end">
+                  <Button
+                    leftSection={<IconRefresh size={16} />}
+                    size="xs"
+                    variant="default"
+                    loading={fetchAllMutation.isPending}
+                    onClick={() => fetchAllMutation.mutate()}
+                  >
+更新全部
+                  </Button>
                   <Button leftSection={<IconPlus size={16} />} onClick={openCreate} size="xs">
                     添加资讯源
                   </Button>
