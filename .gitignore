@@ -18,6 +18,10 @@ dist
 # IDE
 .idea
 .vscode
+.trae
+
+# Agent / tooling runtime
+.superpowers
 *.swp
 *.swo
 
