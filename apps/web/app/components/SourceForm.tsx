@@ -53,6 +53,9 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
         if (data.feedUrl) {
           setDetectedFeedUrl(data.feedUrl);
           form.setFieldValue('url', data.feedUrl);
+          if (data.sourceName && !form.getValues().name) {
+            form.setFieldValue('name', data.sourceName);
+          }
           setDetectStatus('found');
         } else {
           setDetectStatus('not_found');
@@ -74,7 +77,6 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
   return (
     <form onSubmit={form.onSubmit(onSubmit)}>
       <Stack gap="md">
-        <TextInput label="名称" placeholder="例如：Hacker News" {...form.getInputProps('name')} />
         <TextInput
           label="网址"
           placeholder="https://example.com"
@@ -87,6 +89,7 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
           description={urlDescription}
           inputWrapperOrder={['label', 'input', 'description', 'error']}
         />
+        <TextInput label="名称" placeholder="例如：Hacker News" {...form.getInputProps('name')} />
         <NumberInput label="优先级" {...form.getInputProps('priority')} />
         <Select
           label="抓取频率"
