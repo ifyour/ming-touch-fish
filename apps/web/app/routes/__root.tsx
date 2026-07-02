@@ -1,6 +1,7 @@
-import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router';
+import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { Scripts } from '@tanstack/react-start';
 import { AppShell, Container, Title, Text, Group, Button, ColorSchemeScript } from '@mantine/core';
+import { useRef, useCallback } from 'react';
 import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -34,6 +35,23 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const navigate = useNavigate();
+  const clickCountRef = useRef(0);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleTouchFishClick = useCallback(() => {
+    clickCountRef.current += 1;
+    if (clickCountRef.current >= 3) {
+      clickCountRef.current = 0;
+      navigate({ to: '/fish' });
+      return;
+    }
+    clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = setTimeout(() => {
+      clickCountRef.current = 0;
+    }, 1500);
+  }, [navigate]);
+
   return (
     <html lang="zh-CN">
       <head>
@@ -60,7 +78,7 @@ function RootComponent() {
                   <Container
                     size="xl"
                     h="100%"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                    style={{ display: 'flex', alignItems: 'center' }}
                   >
                     <Group gap="xs">
                       <Title order={3}>
@@ -68,17 +86,15 @@ function RootComponent() {
                           摸鱼资讯
                         </Link>
                       </Title>
-                      <Text size="xs" c="dimmed" fw={500}>
+                      <Text
+                        size="xs"
+                        c="dimmed"
+                        fw={500}
+                        style={{ cursor: 'default', userSelect: 'none' }}
+                        onClick={handleTouchFishClick}
+                      >
                         TouchFish News
                       </Text>
-                    </Group>
-                    <Group>
-                      <Button component={Link} to="/" variant="subtle">
-                        首页
-                      </Button>
-                      <Button component={Link} to="/admin" variant="subtle">
-                        管理
-                      </Button>
                     </Group>
                   </Container>
                 </AppShell.Header>

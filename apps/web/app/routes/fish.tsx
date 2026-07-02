@@ -42,7 +42,7 @@ const adminTabs = [
 
 const adminTabSchema = z.enum(['sources']).default('sources');
 
-export const Route = createFileRoute('/admin')({
+export const Route = createFileRoute('/fish')({
   component: AdminPage,
   validateSearch: z.object({ tab: adminTabSchema }),
   loaderDeps: ({ search: { tab } }) => ({ tab }),
@@ -157,7 +157,7 @@ function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: Sortable
 }
 
 function AdminPage() {
-  const { tab } = useSearch({ from: '/admin' });
+  const { tab } = useSearch({ from: '/fish' });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
@@ -376,7 +376,7 @@ function AdminPage() {
               label={item.label}
               leftSection={<item.icon size={18} />}
               active={tab === item.value}
-              onClick={() => navigate({ to: '/admin', search: { tab: item.value } })}
+              onClick={() => navigate({ to: '/fish', search: { tab: item.value } })}
               variant="light"
               style={{ borderRadius: 0 }}
             />
