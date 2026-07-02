@@ -1,4 +1,4 @@
-import { extract } from '@extractus/feed-extractor';
+import { extract, extractFromXml, type FeedData } from '@extractus/feed-extractor';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@repo/db';
 import { normalizeUrl, isLatinText, shouldFetchNow } from '@repo/shared';
@@ -30,14 +30,58 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
 
   console.log(`Fetching source: ${source.name} (${source.url})`);
 
-  const feed = await extract(source.url, {
-    descriptionMaxLen: 500,
-    getExtraEntryFields: (entry) => ({
-      summary: entry['summary'] ?? entry['description'] ?? '',
-      author: entry['author'] ?? entry['creator'] ?? '',
-      categories: entry['categories'] ?? [],
-    }),
-  });
+  const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+  const PROXY = 'https://api.allorigins.win/raw?url=';
+  const V2EX_API = 'https://www.v2ex.com/api/topics/latest.json';
+
+  async function fetchFeed(url: string): Promise<FeedData> {
+    if (url.includes('v2ex.com/index.xml')) {
+      const proxyUrl = PROXY + encodeURIComponent(V2EX_API);
+      const topics = await fetch(proxyUrl, { headers: { 'user-agent': UA } }).then(r => { if (!r.ok) throw new Error(`V2EX proxy: ${r.status}`); return r.json(); }) as Array<Record<string, unknown>>;
+      return {
+        title: 'V2EX',
+        link: 'https://v2ex.com/',
+        description: 'V2EX 最新主题',
+        entries: topics.slice(0, 20).map((t: Record<string, unknown>) => ({
+          id: `v2ex-${t['id']}`,
+          title: String(t['title'] ?? ''),
+          link: `https://v2ex.com/t/${t['id']}`,
+          published: t['created'] ? new Date(Number(t['created']) * 1000).toISOString() : undefined,
+          description: t['content_rendered'] as string | undefined,
+          author: (t['member'] as Record<string, unknown>)?.['username'] as string | undefined,
+        })),
+      };
+    }
+
+    for (const opts of [
+      { headers: { 'user-agent': UA } },
+      { headers: { 'user-agent': UA }, proxy: { target: PROXY } },
+    ]) {
+      try {
+        return await extract(url, {
+          descriptionMaxLen: 500,
+          getExtraEntryFields: (entry) => ({
+            summary: entry['summary'] ?? entry['description'] ?? '',
+            author: entry['author'] ?? entry['creator'] ?? '',
+            categories: entry['categories'] ?? [],
+          }),
+        }, opts);
+      } catch {
+        // try next option
+      }
+    }
+    const xml = await fetch(PROXY + encodeURIComponent(url), { headers: { 'user-agent': UA } }).then(r => r.text());
+    return extractFromXml(xml, {
+      descriptionMaxLen: 500,
+      getExtraEntryFields: (entry) => ({
+        summary: entry['summary'] ?? entry['description'] ?? '',
+        author: entry['author'] ?? entry['creator'] ?? '',
+        categories: entry['categories'] ?? [],
+      }),
+    });
+  }
+
+  const feed = await fetchFeed(source.url);
 
   if (!feed || !feed.entries || feed.entries.length === 0) {
     console.log(`No entries found for source: ${source.name}`);
