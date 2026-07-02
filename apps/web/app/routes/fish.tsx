@@ -1,6 +1,10 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useCallback, useEffect, useRef } from "react";
+import {
+  createFileRoute,
+  useNavigate,
+  useSearch,
+} from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
@@ -16,40 +20,51 @@ import {
   ScrollArea,
   ActionIcon,
   Tooltip,
-} from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
 import {
-  IconPlus, IconRefresh, IconTrash, IconEdit, IconRss,
+  IconPlus,
+  IconRefresh,
+  IconTrash,
+  IconEdit,
+  IconRss,
   IconGripVertical,
-} from '@tabler/icons-react';
+} from "@tabler/icons-react";
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
   type DragEndEvent,
-} from '@dnd-kit/core';
+} from "@dnd-kit/core";
 import {
-  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import type { Source, SourceInput } from '@repo/shared';
-import { SourceForm } from '../components/SourceForm.js';
-import { getApiUrl } from '../utils/apiUrl.js';
-import { z } from 'zod';
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { Source, SourceInput } from "@repo/shared";
+import { SourceForm } from "../components/SourceForm.js";
+import { getApiUrl } from "../utils/apiUrl.js";
+import { z } from "zod";
 
 const adminTabs = [
-  { value: 'sources', label: '资讯源管理', icon: IconRss },
+  { value: "sources", label: "资讯源管理", icon: IconRss },
 ] as const;
 
-const adminTabSchema = z.enum(['sources']).default('sources');
+const adminTabSchema = z.enum(["sources"]).default("sources");
 
-export const Route = createFileRoute('/fish')({
+export const Route = createFileRoute("/fish")({
   component: AdminPage,
   validateSearch: z.object({ tab: adminTabSchema }),
   loaderDeps: ({ search: { tab } }) => ({ tab }),
   loader: async ({ context, deps }) => {
-    if (deps.tab === 'sources') {
+    if (deps.tab === "sources") {
       return context.queryClient.ensureQueryData({
-        queryKey: ['sources'],
+        queryKey: ["sources"],
         queryFn: fetchSources,
       });
     }
@@ -57,8 +72,8 @@ export const Route = createFileRoute('/fish')({
 });
 
 async function fetchSources(): Promise<Source[]> {
-  const response = await fetch(await getApiUrl('/api/sources'));
-  if (!response.ok) throw new Error('Failed to load sources');
+  const response = await fetch(await getApiUrl("/api/sources"));
+  if (!response.ok) throw new Error("Failed to load sources");
   return response.json();
 }
 
@@ -70,8 +85,21 @@ interface SortableRowProps {
   onDelete: () => void;
 }
 
-function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: SortableRowProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: source.id });
+function SortableRow({
+  source,
+  isFetching,
+  onFetch,
+  onEdit,
+  onDelete,
+}: SortableRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: source.id });
 
   const style = {
     transform: isDragging ? CSS.Transform.toString(transform) : undefined,
@@ -87,7 +115,7 @@ function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: Sortable
           variant="subtle"
           color="gray"
           size="sm"
-          style={{ cursor: 'grab' }}
+          style={{ cursor: "grab" }}
           {...attributes}
           {...listeners}
         >
@@ -102,19 +130,25 @@ function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: Sortable
       </Table.Td>
       <Table.Td>
         <Badge variant="light">
-          {({ hourly: '每小时', twice_daily: '每 12 小时', daily: '每天' } as Record<string, string>)[source.fetchFrequency] ?? source.fetchFrequency}
+          {(
+            {
+              hourly: "每小时",
+              twice_daily: "每 12 小时",
+              daily: "每天",
+            } as Record<string, string>
+          )[source.fetchFrequency] ?? source.fetchFrequency}
         </Badge>
       </Table.Td>
       <Table.Td>
-        <Badge color={source.isActive ? 'green' : 'gray'}>
-          {source.isActive ? '启用' : '停用'}
+        <Badge color={source.isActive ? "green" : "gray"}>
+          {source.isActive ? "启用" : "停用"}
         </Badge>
       </Table.Td>
       <Table.Td>
         <Text size="sm" c="dimmed">
           {source.lastFetchedAt
-            ? new Date(source.lastFetchedAt).toLocaleString('zh-CN')
-            : '从未'}
+            ? new Date(source.lastFetchedAt).toLocaleString("zh-CN")
+            : "从未"}
         </Text>
       </Table.Td>
       <Table.Td>
@@ -126,7 +160,11 @@ function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: Sortable
             leftSection={
               <IconRefresh
                 size={14}
-                style={isFetching ? { animation: 'spin 1s linear infinite' } : undefined}
+                style={
+                  isFetching
+                    ? { animation: "spin 1s linear infinite" }
+                    : undefined
+                }
               />
             }
             onClick={onFetch}
@@ -157,20 +195,26 @@ function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: Sortable
 }
 
 function AdminPage() {
-  const { tab } = useSearch({ from: '/fish' });
+  const { tab } = useSearch({ from: "/fish" });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
-  const [editingSource, setEditingSource] = useState<Source | undefined>(undefined);
-  const [deletingSource, setDeletingSource] = useState<Source | undefined>(undefined);
+  const [editingSource, setEditingSource] = useState<Source | undefined>(
+    undefined,
+  );
+  const [deletingSource, setDeletingSource] = useState<Source | undefined>(
+    undefined,
+  );
 
   const { data: sources, isLoading } = useQuery({
-    queryKey: ['sources'],
+    queryKey: ["sources"],
     queryFn: fetchSources,
     staleTime: 5 * 60 * 1000,
   });
 
-  const [sortedSources, setSortedSources] = useState<Source[]>(() => sources ?? []);
+  const [sortedSources, setSortedSources] = useState<Source[]>(
+    () => sources ?? [],
+  );
 
   const prevSources = useRef<Source[] | undefined>(undefined);
   useEffect(() => {
@@ -182,152 +226,193 @@ function AdminPage() {
 
   const createMutation = useMutation({
     mutationFn: async (values: SourceInput): Promise<Source> => {
-      const res = await fetch(await getApiUrl('/api/sources'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(await getApiUrl("/api/sources"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as { error?: string };
+        const err = (await res
+          .json()
+          .catch(() => ({ error: "Request failed" }))) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       return res.json() as Promise<Source>;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
       closeForm();
-      notifications.show({ title: '成功', message: '资讯源已添加', color: 'green' });
+      notifications.show({
+        title: "成功",
+        message: "资讯源已添加",
+        color: "green",
+      });
       fetchMutation.mutate(data.id);
     },
     onError: (err: Error) => {
-      notifications.show({ title: '失败', message: err.message, color: 'red' });
+      notifications.show({ title: "失败", message: err.message, color: "red" });
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, values }: { id: number; values: SourceInput }) => {
       const res = await fetch(await getApiUrl(`/api/sources/${id}`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as { error?: string };
+        const err = (await res
+          .json()
+          .catch(() => ({ error: "Request failed" }))) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
       closeForm();
-      notifications.show({ title: '成功', message: '资讯源已更新', color: 'green' });
+      notifications.show({
+        title: "成功",
+        message: "资讯源已更新",
+        color: "green",
+      });
     },
     onError: (err: Error) => {
-      notifications.show({ title: '失败', message: err.message, color: 'red' });
+      notifications.show({ title: "失败", message: err.message, color: "red" });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(await getApiUrl(`/api/sources/${id}`), { method: 'DELETE' });
+      const res = await fetch(await getApiUrl(`/api/sources/${id}`), {
+        method: "DELETE",
+      });
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as { error?: string };
+        const err = (await res
+          .json()
+          .catch(() => ({ error: "Request failed" }))) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
-      notifications.show({ title: '成功', message: '资讯源已删除', color: 'green' });
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      notifications.show({
+        title: "成功",
+        message: "资讯源已删除",
+        color: "green",
+      });
     },
     onError: (err: Error) => {
-      notifications.show({ title: '失败', message: err.message, color: 'red' });
+      notifications.show({ title: "失败", message: err.message, color: "red" });
     },
   });
 
   const updatePriorityBatch = useMutation({
     mutationFn: async (updates: Array<{ id: number; priority: number }>) => {
-      const apiUrl = await getApiUrl('/api/sources/');
+      const apiUrl = await getApiUrl("/api/sources/");
       await Promise.all(
         updates.map(async ({ id, priority }) => {
           const res = await fetch(`${apiUrl}${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ priority }),
           });
-          if (!res.ok) throw new Error('Failed to update priority');
-        })
+          if (!res.ok) throw new Error("Failed to update priority");
+        }),
       );
     },
     onError: (err: Error) => {
       setSortedSources(prevSources.current ?? []);
-      notifications.show({ title: '排序失败', message: err.message, color: 'red' });
+      notifications.show({
+        title: "排序失败",
+        message: err.message,
+        color: "red",
+      });
     },
   });
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id || !sortedSources.length) return;
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id || !sortedSources.length) return;
 
-    const oldIndex = sortedSources.findIndex(s => s.id === active.id);
-    const newIndex = sortedSources.findIndex(s => s.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
+      const oldIndex = sortedSources.findIndex((s) => s.id === active.id);
+      const newIndex = sortedSources.findIndex((s) => s.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
 
-    const reordered = arrayMove(sortedSources, oldIndex, newIndex);
-    const updates = reordered.map((s, i) => ({ id: s.id, priority: reordered.length - i }));
+      const reordered = arrayMove(sortedSources, oldIndex, newIndex);
+      const updates = reordered.map((s, i) => ({
+        id: s.id,
+        priority: reordered.length - i,
+      }));
 
-    setSortedSources(reordered);
-    updatePriorityBatch.mutate(updates);
-  }, [sortedSources, updatePriorityBatch]);
+      setSortedSources(reordered);
+      updatePriorityBatch.mutate(updates);
+    },
+    [sortedSources, updatePriorityBatch],
+  );
 
   const fetchMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(await getApiUrl(`/api/sources/${id}/fetch`), { method: 'POST' });
+      const res = await fetch(await getApiUrl(`/api/sources/${id}/fetch`), {
+        method: "POST",
+      });
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as { error?: string };
+        const err = (await res
+          .json()
+          .catch(() => ({ error: "Request failed" }))) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       return res.json() as Promise<{ success: boolean; articles: number }>;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
-      queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
       notifications.show({
-        title: '抓取完成',
-        message: data.articles > 0 ? `成功获取 ${data.articles} 篇文章` : '没有新文章',
-        color: data.articles > 0 ? 'green' : 'blue',
+        title: "抓取完成",
+        message:
+          data.articles > 0 ? `成功获取 ${data.articles} 篇文章` : "没有新文章",
+        color: data.articles > 0 ? "green" : "blue",
       });
     },
     onError: (err: Error) => {
-      notifications.show({ title: '失败', message: err.message, color: 'red' });
+      notifications.show({ title: "失败", message: err.message, color: "red" });
     },
   });
 
   const fetchAllMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(await getApiUrl('/api/sources/fetch-all'), { method: 'POST' });
-      if (!res.ok) throw new Error('一键刷新失败');
+      const res = await fetch(await getApiUrl("/api/sources/fetch-all"), {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("一键刷新失败");
       return res.json() as Promise<{ success: boolean; totalFetched: number }>;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
-      queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
       notifications.show({
-        title: '刷新完成',
-        message: data.totalFetched > 0 ? `获取到 ${data.totalFetched} 篇新文章` : '没有新文章',
-        color: data.totalFetched > 0 ? 'green' : 'blue',
+        title: "刷新完成",
+        message:
+          data.totalFetched > 0
+            ? `获取到 ${data.totalFetched} 篇新文章`
+            : "没有新文章",
+        color: data.totalFetched > 0 ? "green" : "blue",
       });
     },
     onError: (err: Error) => {
-      notifications.show({ title: '失败', message: err.message, color: 'red' });
+      notifications.show({ title: "失败", message: err.message, color: "red" });
     },
   });
 
-  const isFetchingSource = (id: number) => fetchMutation.isPending && fetchMutation.variables === id;
+  const isFetchingSource = (id: number) =>
+    fetchMutation.isPending && fetchMutation.variables === id;
 
   const openCreate = () => {
     setEditingSource(undefined);
@@ -358,16 +443,16 @@ function AdminPage() {
       <Group
         align="flex-start"
         gap={0}
-        style={{ minHeight: 'calc(100vh - 80px)' }}
+        style={{ minHeight: "calc(100vh - 80px)" }}
       >
         <Stack
           w={220}
           gap={0}
           py="md"
           style={{
-            borderRight: '1px solid var(--mantine-color-gray-2)',
+            borderRight: "1px solid var(--mantine-color-gray-2)",
             flexShrink: 0,
-            alignSelf: 'stretch',
+            alignSelf: "stretch",
           }}
         >
           {adminTabs.map((item) => (
@@ -376,16 +461,18 @@ function AdminPage() {
               label={item.label}
               leftSection={<item.icon size={18} />}
               active={tab === item.value}
-              onClick={() => navigate({ to: '/fish', search: { tab: item.value } })}
+              onClick={() =>
+                navigate({ to: "/fish", search: { tab: item.value } })
+              }
               variant="light"
               style={{ borderRadius: 0 }}
             />
           ))}
         </Stack>
 
-        <ScrollArea style={{ flex: 1, alignSelf: 'stretch' }}>
+        <ScrollArea style={{ flex: 1, alignSelf: "stretch" }}>
           <Stack gap="md" p="md">
-            {tab === 'sources' && (
+            {tab === "sources" && (
               <>
                 <Group justify="flex-end">
                   <Button
@@ -395,9 +482,13 @@ function AdminPage() {
                     loading={fetchAllMutation.isPending}
                     onClick={() => fetchAllMutation.mutate()}
                   >
-更新全部
+                    更新全部
                   </Button>
-                  <Button leftSection={<IconPlus size={16} />} onClick={openCreate} size="xs">
+                  <Button
+                    leftSection={<IconPlus size={16} />}
+                    onClick={openCreate}
+                    size="xs"
+                  >
                     添加资讯源
                   </Button>
                 </Group>
@@ -405,23 +496,33 @@ function AdminPage() {
                 <LoadingOverlay visible={isLoading} />
 
                 <Card withBorder>
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <Table highlightOnHover>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th w={40}></Table.Th>
-                        <Table.Th>名称</Table.Th>
-                        <Table.Th>RSS</Table.Th>
-                        <Table.Th>频率</Table.Th>
-                        <Table.Th>状态</Table.Th>
-                        <Table.Th>上次抓取</Table.Th>
-                        <Table.Th>操作</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                      <SortableContext items={sortedSources.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <Table highlightOnHover>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th w={40}></Table.Th>
+                          <Table.Th>名称</Table.Th>
+                          <Table.Th>RSS</Table.Th>
+                          <Table.Th>频率</Table.Th>
+                          <Table.Th>状态</Table.Th>
+                          <Table.Th>上次抓取</Table.Th>
+                          <Table.Th>操作</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <SortableContext
+                        items={sortedSources.map((s) => s.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
                         <Table.Tbody>
                           {sortedSources.map((source) => (
-                            <SortableRow key={source.id} source={source} isFetching={isFetchingSource(source.id)}
+                            <SortableRow
+                              key={source.id}
+                              source={source}
+                              isFetching={isFetchingSource(source.id)}
                               onFetch={() => fetchMutation.mutate(source.id)}
                               onEdit={() => openEdit(source)}
                               onDelete={() => setDeletingSource(source)}
@@ -429,12 +530,21 @@ function AdminPage() {
                           ))}
                         </Table.Tbody>
                       </SortableContext>
-                  </Table>
+                    </Table>
                   </DndContext>
                 </Card>
 
-                <Modal opened={opened} onClose={closeForm} title={editingSource ? '编辑资讯源' : '添加资讯源'} centered>
-                  <SourceForm source={editingSource} onSubmit={handleSubmit} onCancel={closeForm} />
+                <Modal
+                  opened={opened}
+                  onClose={closeForm}
+                  title={editingSource ? "编辑资讯源" : "添加资讯源"}
+                  centered
+                >
+                  <SourceForm
+                    source={editingSource}
+                    onSubmit={handleSubmit}
+                    onCancel={closeForm}
+                  />
                 </Modal>
 
                 <Modal
@@ -448,14 +558,18 @@ function AdminPage() {
                     确定要删除「{deletingSource?.name}」吗？该操作不可撤销。
                   </Text>
                   <Group justify="flex-end" gap="sm">
-                    <Button variant="default" onClick={() => setDeletingSource(undefined)}>
+                    <Button
+                      variant="default"
+                      onClick={() => setDeletingSource(undefined)}
+                    >
                       取消
                     </Button>
                     <Button
                       color="red"
                       loading={deleteMutation.isPending}
                       onClick={() => {
-                        if (deletingSource) deleteMutation.mutate(deletingSource.id);
+                        if (deletingSource)
+                          deleteMutation.mutate(deletingSource.id);
                         setDeletingSource(undefined);
                       }}
                     >

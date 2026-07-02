@@ -1,11 +1,10 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@repo/shared": ["../../packages/shared/src/index.ts"],
-      "@repo/db": ["../../packages/db/src/index.ts"],
-      "@repo/db/schema": ["../../packages/db/src/schema.ts"]
+      "@repo/shared": ["${configDir}/../../packages/shared/src/index.ts"],
+      "@repo/db": ["${configDir}/../../packages/db/src/index.ts"],
+      "@repo/db/schema": ["${configDir}/../../packages/db/src/schema.ts"]
     },
     "types": ["@cloudflare/workers-types"]
   },
