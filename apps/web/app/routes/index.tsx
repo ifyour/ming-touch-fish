@@ -12,7 +12,7 @@ export const Route = createFileRoute('/')({
     await context.queryClient.ensureQueryData({
       queryKey: ['articles', 'grouped'],
       queryFn: fetchGroupedArticles,
-      staleTime: 30_000,
+      staleTime: 5 * 60 * 1000,
     });
   },
 });
@@ -29,7 +29,7 @@ function HomePage() {
   const { data: groups, error, isLoading } = useQuery({
     queryKey: ['articles', 'grouped'],
     queryFn: fetchGroupedArticles,
-    staleTime: 30_000,
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
   });
 
