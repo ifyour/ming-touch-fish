@@ -57,7 +57,7 @@ app.get('/grouped', async (c) => {
 
   const result = Array.from(grouped.values()).map((group) => ({
     source: group.source,
-    articles: group.articles.slice(0, 10),
+    articles: group.articles.slice(0, 20),
   }));
 
   c.header('Cache-Control', 'no-cache, no-store');

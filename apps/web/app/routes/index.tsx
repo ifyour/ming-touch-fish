@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useSuspenseQuery } from '@tanstack/react-query';
-import { SimpleGrid, Title, Loader, Alert, Container } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
+import { SimpleGrid, Skeleton, Alert, Container, Stack, Group, Text } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import type { ArticleGroupedBySource } from '@repo/shared';
 import { SourceSection } from '../components/SourceSection.js';
@@ -26,15 +26,42 @@ async function fetchGroupedArticles(): Promise<ArticleGroupedBySource[]> {
   return response.json();
 }
 
+function SkeletonCard() {
+  return (
+    <Stack>
+      <Group gap="xs" px="md" py="sm">
+        <Skeleton height={22} width="60%" />
+        <Skeleton height={22} width={22} circle style={{ marginLeft: 'auto' }} />
+      </Group>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Group key={i} px="xs" py={6} justify="space-between" wrap="nowrap">
+          <Skeleton height={16} width={`${60 + Math.random() * 30}%`} />
+          <Skeleton height={12} width={40} />
+        </Group>
+      ))}
+    </Stack>
+  );
+}
+
 function HomePage() {
-  const { data: groups, error, isLoading } = useSuspenseQuery({
+  const { data: groups, error, isLoading } = useQuery({
     queryKey: ['articles', 'grouped'],
     queryFn: fetchGroupedArticles,
     staleTime: 0,
   });
 
   if (isLoading) {
-    return <Loader />;
+    return (
+      <Container size="xl">
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} radius="md" style={{ overflow: 'hidden' }}>
+              <SkeletonCard />
+            </Skeleton>
+          ))}
+        </SimpleGrid>
+      </Container>
+    );
   }
 
   if (error) {

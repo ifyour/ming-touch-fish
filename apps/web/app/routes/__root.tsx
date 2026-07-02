@@ -39,6 +39,12 @@ function RootComponent() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>摸鱼资讯 - TouchFish News</title>
+        <meta name="description" content="摸鱼资讯 - 聚合精选技术资讯与优质内容，一站式阅读体验" />
+        <meta property="og:title" content="摸鱼资讯 - TouchFish News" />
+        <meta property="og:description" content="聚合精选技术资讯与优质内容，一站式阅读体验" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="摸鱼资讯" />
         <ColorSchemeScript defaultColorScheme="light" />
         <style dangerouslySetInnerHTML={{ __html: mantineCoreCss }} />
         <style dangerouslySetInnerHTML={{ __html: mantineNotificationsCss }} />

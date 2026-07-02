@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,12 +14,23 @@ import {
   Badge,
   NavLink,
   ScrollArea,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
   IconPlus, IconRefresh, IconTrash, IconEdit, IconRss,
+  IconGripVertical,
 } from '@tabler/icons-react';
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Source, SourceInput } from '@repo/shared';
 import { SourceForm } from '../components/SourceForm.js';
 import { getApiUrl } from '../utils/apiUrl.js';
@@ -51,6 +62,98 @@ async function fetchSources(): Promise<Source[]> {
   return response.json();
 }
 
+interface SortableRowProps {
+  source: Source;
+  isFetching: boolean;
+  onFetch: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+function SortableRow({ source, isFetching, onFetch, onEdit, onDelete }: SortableRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: source.id });
+
+  const style = {
+    transform: isDragging ? CSS.Transform.toString(transform) : undefined,
+    transition: isDragging ? transition : undefined,
+    opacity: isDragging ? 0.4 : undefined,
+    zIndex: isDragging ? 1 : undefined,
+  };
+
+  return (
+    <Table.Tr ref={setNodeRef} style={style}>
+      <Table.Td>
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
+          style={{ cursor: 'grab' }}
+          {...attributes}
+          {...listeners}
+        >
+          <IconGripVertical size={14} />
+        </ActionIcon>
+      </Table.Td>
+      <Table.Td>{source.name}</Table.Td>
+      <Table.Td>
+        <Text size="sm" lineClamp={1} style={{ maxWidth: 240 }}>
+          {source.url}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <Badge variant="light">{source.fetchFrequency}</Badge>
+      </Table.Td>
+      <Table.Td>
+        <Badge color={source.isActive ? 'green' : 'gray'}>
+          {source.isActive ? '启用' : '停用'}
+        </Badge>
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm" c="dimmed">
+          {source.lastFetchedAt
+            ? new Date(source.lastFetchedAt).toLocaleString('zh-CN')
+            : '从未'}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <Group gap="xs">
+          <Button
+            size="xs"
+            variant="light"
+            disabled={isFetching}
+            leftSection={
+              <IconRefresh
+                size={14}
+                style={isFetching ? { animation: 'spin 1s linear infinite' } : undefined}
+              />
+            }
+            onClick={onFetch}
+          >
+            抓取
+          </Button>
+          <Button
+            size="xs"
+            variant="default"
+            leftSection={<IconEdit size={14} />}
+            onClick={onEdit}
+          >
+            编辑
+          </Button>
+          <Button
+            size="xs"
+            color="red"
+            variant="light"
+            leftSection={<IconTrash size={14} />}
+            onClick={onDelete}
+          >
+            删除
+          </Button>
+        </Group>
+      </Table.Td>
+    </Table.Tr>
+  );
+}
+
 function AdminPage() {
   const { tab } = useSearch({ from: '/admin' });
   const navigate = useNavigate();
@@ -64,6 +167,16 @@ function AdminPage() {
     queryFn: fetchSources,
     staleTime: 5 * 60 * 1000,
   });
+
+  const [sortedSources, setSortedSources] = useState<Source[]>(() => sources ?? []);
+
+  const prevSources = useRef<Source[] | undefined>(undefined);
+  useEffect(() => {
+    if (sources && sources !== prevSources.current) {
+      setSortedSources(sources);
+      prevSources.current = sources;
+    }
+  }, [sources]);
 
   const createMutation = useMutation({
     mutationFn: async (values: SourceInput): Promise<Source> => {
@@ -129,6 +242,45 @@ function AdminPage() {
       notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
+
+  const updatePriorityBatch = useMutation({
+    mutationFn: async (updates: Array<{ id: number; priority: number }>) => {
+      const apiUrl = await getApiUrl('/api/sources/');
+      await Promise.all(
+        updates.map(async ({ id, priority }) => {
+          const res = await fetch(`${apiUrl}${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ priority }),
+          });
+          if (!res.ok) throw new Error('Failed to update priority');
+        })
+      );
+    },
+    onError: (err: Error) => {
+      setSortedSources(prevSources.current ?? []);
+      notifications.show({ title: '排序失败', message: err.message, color: 'red' });
+    },
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !sortedSources.length) return;
+
+    const oldIndex = sortedSources.findIndex(s => s.id === active.id);
+    const newIndex = sortedSources.findIndex(s => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(sortedSources, oldIndex, newIndex);
+    const updates = reordered.map((s, i) => ({ id: s.id, priority: reordered.length - i }));
+
+    setSortedSources(reordered);
+    updatePriorityBatch.mutate(updates);
+  }, [sortedSources, updatePriorityBatch]);
 
   const fetchMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -222,82 +374,32 @@ function AdminPage() {
                 <LoadingOverlay visible={isLoading} />
 
                 <Card withBorder>
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <Table highlightOnHover>
                     <Table.Thead>
                       <Table.Tr>
+                        <Table.Th w={40}></Table.Th>
                         <Table.Th>名称</Table.Th>
                         <Table.Th>RSS</Table.Th>
-                        {/* <Table.Th>优先级</Table.Th> */}
                         <Table.Th>频率</Table.Th>
                         <Table.Th>状态</Table.Th>
                         <Table.Th>上次抓取</Table.Th>
                         <Table.Th>操作</Table.Th>
                       </Table.Tr>
                     </Table.Thead>
-                    <Table.Tbody>
-                      {sources?.map((source) => (
-                        <Table.Tr key={source.id}>
-                          <Table.Td>{source.name}</Table.Td>
-                          <Table.Td>
-                            <Text size="sm" lineClamp={1} style={{ maxWidth: 240 }}>
-                              {source.url}
-                            </Text>
-                          </Table.Td>
-                          {/* <Table.Td>{source.priority}</Table.Td> */}
-                          <Table.Td>
-                            <Badge variant="light">{source.fetchFrequency}</Badge>
-                          </Table.Td>
-                          <Table.Td>
-                            <Badge color={source.isActive ? 'green' : 'gray'}>
-                              {source.isActive ? '启用' : '停用'}
-                            </Badge>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="sm" c="dimmed">
-                              {source.lastFetchedAt
-                                ? new Date(source.lastFetchedAt).toLocaleString('zh-CN')
-                                : '从未'}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <Group gap="xs">
-                              <Button
-                                size="xs"
-                                variant="light"
-                                disabled={isFetchingSource(source.id)}
-                                leftSection={
-                                  <IconRefresh
-                                    size={14}
-                                    style={isFetchingSource(source.id) ? { animation: 'spin 1s linear infinite' } : undefined}
-                                  />
-                                }
-                                onClick={() => fetchMutation.mutate(source.id)}
-                              >
-                                抓取
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="default"
-                                leftSection={<IconEdit size={14} />}
-                                onClick={() => openEdit(source)}
-                              >
-                                编辑
-                              </Button>
-                              <Button
-                                size="xs"
-                                color="red"
-                                variant="light"
-                                leftSection={<IconTrash size={14} />}
-                                onClick={() => setDeletingSource(source)}
-                              >
-                                删除
-                              </Button>
-                            </Group>
-                          </Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
+                      <SortableContext items={sortedSources.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                        <Table.Tbody>
+                          {sortedSources.map((source) => (
+                            <SortableRow key={source.id} source={source} isFetching={isFetchingSource(source.id)}
+                              onFetch={() => fetchMutation.mutate(source.id)}
+                              onEdit={() => openEdit(source)}
+                              onDelete={() => setDeletingSource(source)}
+                            />
+                          ))}
+                        </Table.Tbody>
+                      </SortableContext>
                   </Table>
+                  </DndContext>
                 </Card>
 
                 <Modal opened={opened} onClose={closeForm} title={editingSource ? '编辑资讯源' : '添加资讯源'} centered>
