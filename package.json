@@ -1,8 +1,8 @@
 {
-  "name": "cloudflare-news-aggregator",
+  "name": "ming-touch-fish",
   "private": true,
   "version": "1.0.0",
-  "description": "Personal news aggregator powered by Cloudflare, TanStack Start, Hono, and D1",
+  "description": "Personal news aggregator.",
   "scripts": {
     "cleanup": "pkill -f 'workerd.*ming-touch-fish' 2>/dev/null; pkill -f 'esbuild.*ming-touch-fish' 2>/dev/null; echo 'done'",
     "build": "turbo run build",
