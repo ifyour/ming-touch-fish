@@ -7,7 +7,6 @@ import { articleExists } from './dedup.js';
 import { translateTitle } from './translator.js';
 
 const MAX_ARTICLES_PER_SOURCE = 10;
-const CUTOFF_HOURS = 48;
 
 export async function getSourcesToFetch(db: D1Database) {
   const drizzle = createDb(db);
@@ -31,13 +30,14 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
   console.log(`Fetching source: ${source.name} (${source.url})`);
 
   const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
-  const PROXY = 'https://api.allorigins.win/raw?url=';
   const V2EX_API = 'https://www.v2ex.com/api/topics/latest.json';
 
   async function fetchFeed(url: string): Promise<FeedData> {
     if (url.includes('v2ex.com/index.xml')) {
-      const proxyUrl = PROXY + encodeURIComponent(V2EX_API);
-      const topics = await fetch(proxyUrl, { headers: { 'user-agent': UA } }).then(r => { if (!r.ok) throw new Error(`V2EX proxy: ${r.status}`); return r.json(); }) as Array<Record<string, unknown>>;
+      const topics = await fetch(V2EX_API, {
+        signal: AbortSignal.timeout(10000),
+        headers: { 'user-agent': UA },
+      }).then(r => { if (!r.ok) throw new Error(`V2EX API: ${r.status}`); return r.json(); }) as Array<Record<string, unknown>>;
       return {
         title: 'V2EX',
         link: 'https://v2ex.com/',
@@ -53,10 +53,8 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
       };
     }
 
-    for (const opts of [
-      { headers: { 'user-agent': UA } },
-      { headers: { 'user-agent': UA }, proxy: { target: PROXY } },
-    ]) {
+    const uas = [UA, 'Mozilla/5.0 (compatible; Feedfetcher-Google; +http://www.google.com/feedfetcher.html)'];
+    for (const ua of uas) {
       try {
         return await extract(url, {
           descriptionMaxLen: 500,
@@ -65,20 +63,27 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
             author: entry['author'] ?? entry['creator'] ?? '',
             categories: entry['categories'] ?? [],
           }),
-        }, opts);
-      } catch {
-        // try next option
+        }, { headers: { 'user-agent': ua }, signal: AbortSignal.timeout(10000) });
+      } catch (err) {
+        console.warn(`Extract failed for ${url} (UA: ${ua.slice(0, 40)}...):`, err);
       }
     }
-    const xml = await fetch(PROXY + encodeURIComponent(url), { headers: { 'user-agent': UA } }).then(r => r.text());
-    return extractFromXml(xml, {
-      descriptionMaxLen: 500,
-      getExtraEntryFields: (entry) => ({
-        summary: entry['summary'] ?? entry['description'] ?? '',
-        author: entry['author'] ?? entry['creator'] ?? '',
-        categories: entry['categories'] ?? [],
-      }),
-    });
+    for (const ua of uas) {
+      const resp = await fetch(url, { headers: { 'user-agent': ua }, signal: AbortSignal.timeout(10000) });
+      if (resp.ok) {
+        const xml = await resp.text();
+        return extractFromXml(xml, {
+          descriptionMaxLen: 500,
+          getExtraEntryFields: (entry) => ({
+            summary: entry['summary'] ?? entry['description'] ?? '',
+            author: entry['author'] ?? entry['creator'] ?? '',
+            categories: entry['categories'] ?? [],
+          }),
+        });
+      }
+      console.warn(`Fetch failed for ${url} (UA: ${ua.slice(0, 40)}...): HTTP ${resp.status}`);
+    }
+    throw new Error(`All fetch attempts failed for ${url}`);
   }
 
   const feed = await fetchFeed(source.url);
@@ -89,14 +94,11 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
     return;
   }
 
-  const cutoff = Date.now() - CUTOFF_HOURS * 60 * 60 * 1000;
-
   const recentEntries = feed.entries
     .map((entry) => {
       const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
       return { ...entry, publishedTime };
     })
-    .filter((entry) => entry.publishedTime >= cutoff)
     .sort((a, b) => b.publishedTime - a.publishedTime)
     .slice(0, MAX_ARTICLES_PER_SOURCE);
 

@@ -29,14 +29,14 @@ const FEED_PATHS = ['/feed', '/feed.xml', '/rss', '/rss.xml', '/atom.xml', '/ind
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 
-const PROXY = 'https://api.allorigins.win/raw?url=';
 const V2EX_API = 'https://www.v2ex.com/api/topics/latest.json';
 
 async function fetchFeed(url: string): Promise<FeedData> {
-  // V2EX blocks Cloudflare Worker IPs; route through allorigins proxy
   if (url.includes('v2ex.com/index.xml')) {
-    const proxyUrl = PROXY + encodeURIComponent(V2EX_API);
-    const topics = await fetch(proxyUrl, { headers: { 'user-agent': UA } }).then(r => { if (!r.ok) throw new Error(`V2EX proxy: ${r.status}`); return r.json(); }) as Array<Record<string, unknown>>;
+    const topics = await fetch(V2EX_API, {
+      signal: AbortSignal.timeout(10000),
+      headers: { 'user-agent': UA },
+    }).then(r => { if (!r.ok) throw new Error(`V2EX API: ${r.status}`); return r.json(); }) as Array<Record<string, unknown>>;
     return {
       title: 'V2EX',
       link: 'https://v2ex.com/',
@@ -52,10 +52,8 @@ async function fetchFeed(url: string): Promise<FeedData> {
     };
   }
 
-  for (const opts of [
-    { headers: { 'user-agent': UA } },
-    { headers: { 'user-agent': UA }, proxy: { target: PROXY } },
-  ]) {
+  const uas = [UA, 'Mozilla/5.0 (compatible; Feedfetcher-Google; +http://www.google.com/feedfetcher.html)'];
+  for (const ua of uas) {
     try {
       return await extract(url, {
         descriptionMaxLen: 500,
@@ -64,21 +62,27 @@ async function fetchFeed(url: string): Promise<FeedData> {
           author: entry['author'] ?? entry['creator'] ?? '',
           categories: entry['categories'] ?? [],
         }),
-      }, opts);
-    } catch {
-      // try next option
+      }, { headers: { 'user-agent': ua }, signal: AbortSignal.timeout(10000) });
+    } catch (err) {
+      console.warn(`Extract failed for ${url} (UA: ${ua.slice(0, 40)}...):`, err);
     }
   }
-  // last resort: fetch raw XML via proxy, then parse
-  const xml = await fetch(PROXY + encodeURIComponent(url), { headers: { 'user-agent': UA } }).then(r => r.text());
-  return extractFromXml(xml, {
-    descriptionMaxLen: 500,
-    getExtraEntryFields: (entry) => ({
-      summary: entry['summary'] ?? entry['description'] ?? '',
-      author: entry['author'] ?? entry['creator'] ?? '',
-      categories: entry['categories'] ?? [],
-    }),
-  });
+  for (const ua of uas) {
+    const resp = await fetch(url, { headers: { 'user-agent': ua }, signal: AbortSignal.timeout(10000) });
+    if (resp.ok) {
+      const xml = await resp.text();
+      return extractFromXml(xml, {
+        descriptionMaxLen: 500,
+        getExtraEntryFields: (entry) => ({
+          summary: entry['summary'] ?? entry['description'] ?? '',
+          author: entry['author'] ?? entry['creator'] ?? '',
+          categories: entry['categories'] ?? [],
+        }),
+      });
+    }
+    console.warn(`Fetch failed for ${url} (UA: ${ua.slice(0, 40)}...): HTTP ${resp.status}`);
+  }
+  throw new Error(`All fetch attempts failed for ${url}`);
 }
 
 const createSourceSchema = z.object({
@@ -234,7 +238,6 @@ app.post('/:id/fetch', async (c) => {
       return c.json({ success: true, articles: 0 });
     }
 
-    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
     const pending: Array<{
       title: string;
       url: string;
@@ -244,7 +247,6 @@ app.post('/:id/fetch', async (c) => {
 
     for (const entry of feed.entries) {
       const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
-      if (publishedTime < cutoff) continue;
       if (pending.length >= 10) break;
 
       const url = normalizeUrl(entry.link ?? '');

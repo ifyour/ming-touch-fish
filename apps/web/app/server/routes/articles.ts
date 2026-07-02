@@ -1,4 +1,4 @@
-import { eq, desc, and, gte } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { createDb, schema } from '@repo/db';
 import type { Bindings } from '../types';
@@ -29,7 +29,6 @@ app.get('/', async (c) => {
 
 app.get('/grouped', async (c) => {
   const db = createDb(c.env.DB);
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const rows = await db
     .select({
@@ -39,7 +38,7 @@ app.get('/grouped', async (c) => {
     .from(schema.sources)
     .leftJoin(
       schema.articles,
-      and(eq(schema.articles.sourceId, schema.sources.id), gte(schema.articles.publishedAt, cutoff))
+      eq(schema.articles.sourceId, schema.sources.id)
     )
     .where(eq(schema.sources.isActive, true))
     .orderBy(desc(schema.sources.priority), desc(schema.sources.createdAt), desc(schema.articles.publishedAt));
