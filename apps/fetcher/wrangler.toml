@@ -22,9 +22,6 @@ database_id = "c4d7b287-e336-432c-bd93-930a03af7be9"
 preview_database_id = "c4d7b287-e336-432c-bd93-930a03af7be9"
 migrations_dir = "../../packages/db/migrations"
 
-[ai]
-binding = "AI"
-
 [observability]
 enabled = true
 head_sampling_rate = 1
