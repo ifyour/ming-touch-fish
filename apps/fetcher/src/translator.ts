@@ -4,6 +4,7 @@ import type { Env } from './types.js';
 const SYSTEM_PROMPT =
   'Translate the English tech article titles into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Output ONLY translations, one per line, in the same order as input. No extra text.';
 
+const AI_OPTIONS = { signal: AbortSignal.timeout(20000) };
 const BATCH_MAX = 10;
 
 export async function translateTitle(env: Env, title: string): Promise<string> {
@@ -13,7 +14,7 @@ export async function translateTitle(env: Env, title: string): Promise<string> {
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: title },
       ],
-    });
+    }, AI_OPTIONS);
 
     if (
       response &&
@@ -43,7 +44,7 @@ export async function translateTitles(env: Env, titles: string[]): Promise<(stri
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: batch.join('\n') },
         ],
-      });
+      }, AI_OPTIONS);
 
       if (
         response &&

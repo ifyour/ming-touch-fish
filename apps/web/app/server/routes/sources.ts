@@ -222,7 +222,7 @@ async function translateTitle(ai: Bindings['AI'], title: string): Promise<string
         },
         { role: 'user', content: title },
       ],
-    }) as { response?: string };
+    }, { signal: AbortSignal.timeout(15000) }) as { response?: string };
 
     return response?.response?.trim() || null;
   } catch {
