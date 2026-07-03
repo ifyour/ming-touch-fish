@@ -94,9 +94,9 @@ export function SourceSection({ group }: SourceSectionProps) {
         </Stack>
       )}
       {hasMore && !expanded && (
-        <Card.Section withBorder style={{ borderTop: 'none' }}>
+        <Card.Section withBorder style={{ borderTop: 'none', cursor: 'pointer'}} onClick={handleShowMore}>
           <Center py={4}>
-            <Anchor component="button" size="xs" c="dimmed" onClick={handleShowMore}>
+            <Anchor component="button" size="xs" c="dimmed">
               Show more
             </Anchor>
           </Center>
