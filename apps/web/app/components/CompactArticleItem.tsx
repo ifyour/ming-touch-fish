@@ -5,9 +5,10 @@ import { useRef, useState, useEffect } from 'react';
 
 interface CompactArticleItemProps {
   article: Article;
+  read?: boolean;
 }
 
-export function CompactArticleItem({ article }: CompactArticleItemProps) {
+export function CompactArticleItem({ article, read = false }: CompactArticleItemProps) {
   const displayTitle = article.translatedTitle ?? article.title;
   const titleRef = useRef<HTMLAnchorElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);
@@ -37,7 +38,7 @@ export function CompactArticleItem({ article }: CompactArticleItemProps) {
         borderBottom: '1px solid var(--mantine-color-gray-2)',
       }}
     >
-      <Tooltip label={displayTitle} disabled={!isTruncated} position="top" openDelay={200} withArrow>
+      <Tooltip label={displayTitle} disabled={!isTruncated} position="top" openDelay={600} withArrow>
         <Text
           ref={titleRef}
           component="a"
@@ -47,7 +48,11 @@ export function CompactArticleItem({ article }: CompactArticleItemProps) {
           size="sm"
           lineClamp={1}
           className="article-link"
-          style={{ flex: 1, minWidth: 0 }}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            color: read ? 'var(--mantine-color-gray-5)' : undefined,
+          }}
         >
           {displayTitle}
         </Text>

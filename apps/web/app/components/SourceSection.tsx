@@ -1,8 +1,7 @@
 import { Stack, Title, Text, Card, ActionIcon, Tooltip, Anchor, Center } from '@mantine/core';
 import type { ArticleGroupedBySource, Article } from '@repo/shared';
 import { CompactArticleItem } from './CompactArticleItem.js';
-import { IconRefresh } from '@tabler/icons-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { IconCheck } from '@tabler/icons-react';
 import { getApiUrl } from '../utils/apiUrl.js';
 import { useState, useRef, useEffect } from 'react';
 
@@ -11,18 +10,31 @@ interface SourceSectionProps {
 }
 
 const INITIAL_COUNT = 10;
+const COOKIE_EXPIRY_SECONDS = 60 * 60 * 24 * 365;
+
+function getReadArticleIds(): Set<number> {
+  if (typeof document === 'undefined') return new Set();
+  const match = document.cookie.match(/(?:^|; )read_articles=([^;]*)/);
+  if (!match) return new Set();
+  return new Set(match[1].split(',').map(Number).filter((n) => !isNaN(n)));
+}
+
+function saveReadArticleIds(ids: Set<number>) {
+  const value = Array.from(ids).join(',');
+  document.cookie = `read_articles=${value}; max-age=${COOKIE_EXPIRY_SECONDS}; path=/`;
+}
 
 export function SourceSection({ group }: SourceSectionProps) {
   const { source, articles } = group;
-  const queryClient = useQueryClient();
-  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [extraArticles, setExtraArticles] = useState<Article[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [readArticleIds, setReadArticleIds] = useState<Set<number>>(new Set());
 
   const allArticles = [...articles, ...extraArticles];
   const hasMore = allArticles.length > INITIAL_COUNT;
   const displayArticles = expanded ? allArticles : allArticles.slice(0, INITIAL_COUNT);
+  const allRead = displayArticles.length > 0 && displayArticles.every((a) => readArticleIds.has(a.id));
   const cardRef = useRef<HTMLDivElement>(null);
   const [lockedCardHeight, setLockedCardHeight] = useState<number | null>(null);
 
@@ -30,18 +42,17 @@ export function SourceSection({ group }: SourceSectionProps) {
     if (!expanded) setLockedCardHeight(null);
   }, [expanded]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await fetch(await getApiUrl(`/api/sources/${source.id}/fetch`), { method: 'POST' });
-      queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
-      setExtraArticles([]);
-      setExpanded(false);
-    } catch {
-      // ignore
-    } finally {
-      setRefreshing(false);
+  useEffect(() => {
+    setReadArticleIds(getReadArticleIds());
+  }, []);
+
+  const handleMarkRead = () => {
+    const ids = new Set(readArticleIds);
+    for (const article of displayArticles) {
+      ids.add(article.id);
     }
+    saveReadArticleIds(ids);
+    setReadArticleIds(ids);
   };
 
   const handleShowMore = async () => {
@@ -72,9 +83,9 @@ export function SourceSection({ group }: SourceSectionProps) {
       <Card.Section withBorder inheritPadding py="sm" px="md">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title order={5}>{source.name}</Title>
-          <Tooltip label="刷新" position="top" withArrow>
-            <ActionIcon variant="subtle" color="gray" size="sm" loading={refreshing} onClick={handleRefresh}>
-              <IconRefresh size={14} />
+          <Tooltip label="标记已读" position="top" withArrow>
+            <ActionIcon variant="subtle" color={allRead ? 'teal' : 'gray'} size="sm" onClick={handleMarkRead}>
+              <IconCheck size={14} />
             </ActionIcon>
           </Tooltip>
         </div>
@@ -86,7 +97,7 @@ export function SourceSection({ group }: SourceSectionProps) {
       ) : (
         <Stack gap={0} style={expanded ? { flex: 1, overflowY: 'auto', minHeight: 0 } : undefined}>
           {displayArticles.map((article) => (
-            <CompactArticleItem key={article.id} article={article} />
+            <CompactArticleItem key={article.id} article={article} read={readArticleIds.has(article.id)} />
           ))}
           {loadingMore && (
             <Text c="dimmed" size="xs" ta="center" py="sm">加载中...</Text>
