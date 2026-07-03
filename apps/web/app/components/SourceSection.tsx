@@ -84,16 +84,14 @@ export function SourceSection({ group }: SourceSectionProps) {
           暂无最近资讯
         </Text>
       ) : (
-        <Card.Section withBorder style={{ borderBottom: 'none' }}>
-          <Stack gap={0} style={expanded ? { flex: 1, overflowY: 'auto', minHeight: 0 } : undefined}>
-            {displayArticles.map((article) => (
-              <CompactArticleItem key={article.id} article={article} />
-            ))}
-            {loadingMore && (
-              <Text c="dimmed" size="xs" ta="center" py="sm">加载中...</Text>
-            )}
-          </Stack>
-        </Card.Section>
+        <Stack gap={0} style={expanded ? { flex: 1, overflowY: 'auto', minHeight: 0 } : undefined}>
+          {displayArticles.map((article) => (
+            <CompactArticleItem key={article.id} article={article} />
+          ))}
+          {loadingMore && (
+            <Text c="dimmed" size="xs" ta="center" py="sm">加载中...</Text>
+          )}
+        </Stack>
       )}
       {hasMore && !expanded && (
         <Card.Section withBorder style={{ borderTop: 'none' }}>
