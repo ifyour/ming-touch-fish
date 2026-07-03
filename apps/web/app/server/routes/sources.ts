@@ -287,25 +287,16 @@ app.post('/fetch-all', async (c) => {
         }
       }
 
-      const latinTitles = pending.filter((a) => isLatinText(a.title)).map((a) => a.title);
-      const latinTranslated = await translateTitlesSequential(c.env.AI, latinTitles);
-
-      const translated: (string | null)[] = [];
-      let ti = 0;
-      for (const a of pending) {
-        translated.push(isLatinText(a.title) ? latinTranslated[ti++] : null);
-      }
-
       let inserted = 0;
-      for (let i = 0; i < pending.length; i++) {
+      for (const a of pending) {
         try {
           await db.insert(schema.articles).values({
             sourceId: source.id,
-            title: pending[i].title,
-            translatedTitle: translated[i],
-            url: pending[i].url,
-            publishedAt: pending[i].publishedAt,
-            metadata: pending[i].metadata,
+            title: a.title,
+            translatedTitle: null,
+            url: a.url,
+            publishedAt: a.publishedAt,
+            metadata: a.metadata,
           });
           inserted++;
         } catch (err) {
@@ -398,25 +389,16 @@ app.post('/:id/fetch', async (c) => {
       }
     }
 
-    const latinTitles = pending.filter((a) => isLatinText(a.title)).map((a) => a.title);
-    const latinTranslated = await translateTitlesSequential(c.env.AI, latinTitles);
-
-    const translated: (string | null)[] = [];
-    let ti = 0;
-    for (const a of pending) {
-      translated.push(isLatinText(a.title) ? latinTranslated[ti++] : null);
-    }
-
     let inserted = 0;
-    for (let i = 0; i < pending.length; i++) {
+    for (const a of pending) {
       try {
         await db.insert(schema.articles).values({
           sourceId: source.id,
-          title: pending[i].title,
-          translatedTitle: translated[i],
-          url: pending[i].url,
-          publishedAt: pending[i].publishedAt,
-          metadata: pending[i].metadata,
+          title: a.title,
+          translatedTitle: null,
+          url: a.url,
+          publishedAt: a.publishedAt,
+          metadata: a.metadata,
         });
         inserted++;
       } catch (err) {
