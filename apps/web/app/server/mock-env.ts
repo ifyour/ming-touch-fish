@@ -59,6 +59,10 @@ export function createMockEnv(): Bindings {
   return {
     DB: new MockD1Database() as unknown as D1Database,
     NEWS_QUEUE: { send: async () => {} } as unknown as Bindings['NEWS_QUEUE'],
-    AI: { run: async () => ({ translated_text: '' }) } as unknown as Bindings['AI'],
+    AI: {
+      run: async (_model: string, _input: unknown) => ({
+        response: '(mock translation) ' + ((_input as any)?.messages?.[1]?.content ?? ''),
+      }),
+    } as unknown as Bindings['AI'],
   };
 }

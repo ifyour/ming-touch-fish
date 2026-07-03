@@ -213,13 +213,18 @@ app.delete('/:id', async (c) => {
 
 async function translateTitle(ai: Bindings['AI'], title: string): Promise<string | null> {
   try {
-    const response = await ai.run('@cf/meta/m2m100-1.2b', {
-      text: title,
-      source_lang: 'en',
-      target_lang: 'zh',
-    }) as { translated_text?: string };
+    const response = await ai.run('@cf/zai-org/glm-4.7-flash', {
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Translate the English tech article title into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Output ONLY the translation, no explanation.',
+        },
+        { role: 'user', content: title },
+      ],
+    }) as { response?: string };
 
-    return response?.translated_text?.trim() || null;
+    return response?.response?.trim() || null;
   } catch {
     return null;
   }
@@ -419,6 +424,60 @@ app.post('/:id/fetch', async (c) => {
       resp.totalFound = pending.length;
     }
     return c.json(resp);
+  } catch (err) {
+    return c.json({ error: String(err) }, 500);
+  }
+});
+
+app.post('/:id/retranslate', async (c) => {
+  const id = Number(c.req.param('id'));
+  const db = createDb(c.env.DB);
+
+  const source = await db.select().from(schema.sources).where(eq(schema.sources.id, id)).get();
+  if (!source) return c.json({ error: 'Source not found' }, 404);
+
+  try {
+    const limit = Math.min(Number(c.req.query('limit') || '1'), 3);
+    const offset = Number(c.req.query('offset') || '0');
+
+    const articles = await db
+      .select()
+      .from(schema.articles)
+      .where(eq(schema.articles.sourceId, id))
+      .offset(offset)
+      .limit(limit)
+      .all();
+
+    const toTranslate = articles.filter((a) => isLatinText(a.title));
+    if (!toTranslate.length) {
+      return c.json({ success: true, translated: 0, done: true, message: 'No articles to translate in this batch' });
+    }
+
+    const translated = await Promise.allSettled(
+      toTranslate.map((a) => translateTitle(c.env.AI, a.title))
+    );
+
+    const results: Array<{ articleId: number; translatedTitle: string }> = [];
+    for (let j = 0; j < toTranslate.length; j++) {
+      const r = translated[j];
+      if (r.status === 'fulfilled' && r.value) {
+        results.push({ articleId: toTranslate[j].id, translatedTitle: r.value });
+      }
+    }
+
+    const updated = await db.transaction(async (tx) => {
+      let count = 0;
+      for (const r of results) {
+        await tx
+          .update(schema.articles)
+          .set({ translatedTitle: r.translatedTitle })
+          .where(eq(schema.articles.id, r.articleId));
+        count++;
+      }
+      return count;
+    });
+
+    return c.json({ success: true, translated: updated, nextOffset: offset + limit });
   } catch (err) {
     return c.json({ error: String(err) }, 500);
   }
