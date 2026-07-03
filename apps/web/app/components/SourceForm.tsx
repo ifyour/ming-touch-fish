@@ -82,8 +82,9 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
           placeholder="https://example.com"
           value={rawUrl}
           onChange={(e) => {
-            setRawUrl(e.currentTarget.value);
-            form.setFieldValue('url', e.currentTarget.value);
+            const value = e.currentTarget.value.trim();
+            setRawUrl(value);
+            form.setFieldValue('url', value);
           }}
           error={urlError}
           description={urlDescription}

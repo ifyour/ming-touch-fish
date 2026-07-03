@@ -16,6 +16,7 @@ import {
   Title,
   Text,
   Badge,
+  Switch,
   NavLink,
   ScrollArea,
   ActionIcon,
@@ -83,6 +84,7 @@ interface SortableRowProps {
   onFetch: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleActive: () => void;
 }
 
 function SortableRow({
@@ -91,6 +93,7 @@ function SortableRow({
   onFetch,
   onEdit,
   onDelete,
+  onToggleActive,
 }: SortableRowProps) {
   const {
     attributes,
@@ -140,9 +143,11 @@ function SortableRow({
         </Badge>
       </Table.Td>
       <Table.Td>
-        <Badge color={source.isActive ? "green" : "gray"}>
-          {source.isActive ? "启用" : "停用"}
-        </Badge>
+        <Switch
+          size="xs"
+          checked={source.isActive}
+          onChange={onToggleActive}
+        />
       </Table.Td>
       <Table.Td>
         <Text size="sm" c="dimmed">
@@ -152,9 +157,9 @@ function SortableRow({
         </Text>
       </Table.Td>
       <Table.Td>
-        <Group gap="xs">
+        <Group gap={4}>
           <Button
-            size="xs"
+            size="compact-xs"
             variant="light"
             disabled={isFetching}
             leftSection={
@@ -172,7 +177,7 @@ function SortableRow({
             更新
           </Button>
           <Button
-            size="xs"
+            size="compact-xs"
             variant="default"
             leftSection={<IconEdit size={14} />}
             onClick={onEdit}
@@ -180,7 +185,7 @@ function SortableRow({
             编辑
           </Button>
           <Button
-            size="xs"
+            size="compact-xs"
             color="red"
             variant="light"
             leftSection={<IconTrash size={14} />}
@@ -330,6 +335,24 @@ function AdminPage() {
         message: err.message,
         color: "red",
       });
+    },
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
+      const res = await fetch(await getApiUrl(`/api/sources/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive }),
+      });
+      if (!res.ok) throw new Error("Failed to toggle status");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: "失败", message: err.message, color: "red" });
     },
   });
 
@@ -526,6 +549,12 @@ function AdminPage() {
                               onFetch={() => fetchMutation.mutate(source.id)}
                               onEdit={() => openEdit(source)}
                               onDelete={() => setDeletingSource(source)}
+                              onToggleActive={() =>
+                                toggleActiveMutation.mutate({
+                                  id: source.id,
+                                  isActive: !source.isActive,
+                                })
+                              }
                             />
                           ))}
                         </Table.Tbody>
