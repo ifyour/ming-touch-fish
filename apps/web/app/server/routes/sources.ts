@@ -211,23 +211,54 @@ app.delete('/:id', async (c) => {
   return c.json({ success: true });
 });
 
+const TRANSLATE_SYSTEM_PROMPT =
+  'Translate the English tech article titles into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Input is a JSON array of strings. (4) Respond with ONLY a JSON array of strings in the same order.';
+
+const BATCH_MAX = 30;
+
 async function translateTitle(ai: Bindings['AI'], title: string): Promise<string | null> {
   try {
     const response = await ai.run('@cf/zai-org/glm-4.7-flash', {
       messages: [
-        {
-          role: 'system',
-          content:
-            'Translate the English tech article title into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Output ONLY the translation, no explanation.',
-        },
-        { role: 'user', content: title },
+        { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
+        { role: 'user', content: JSON.stringify([title]) },
       ],
     }) as { response?: string };
 
-    return response?.response?.trim() || null;
-  } catch {
-    return null;
+    const parsed = JSON.parse(response?.response?.trim() ?? '[]');
+    if (Array.isArray(parsed) && typeof parsed[0] === 'string') return parsed[0];
+  } catch {}
+  return null;
+}
+
+async function translateTitles(ai: Bindings['AI'], titles: string[]): Promise<(string | null)[]> {
+  if (titles.length === 0) return [];
+  if (titles.length === 1) return [await translateTitle(ai, titles[0])];
+
+  const results: (string | null)[] = [];
+
+  for (let i = 0; i < titles.length; i += BATCH_MAX) {
+    const batch = titles.slice(i, i + BATCH_MAX);
+    try {
+      const response = await ai.run('@cf/zai-org/glm-4.7-flash', {
+        messages: [
+          { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
+          { role: 'user', content: JSON.stringify(batch) },
+        ],
+      }) as { response?: string };
+
+      const parsed = JSON.parse(response?.response?.trim() ?? '');
+      if (Array.isArray(parsed) && parsed.length === batch.length && parsed.every((s: unknown) => typeof s === 'string')) {
+        results.push(...(parsed as string[]));
+        continue;
+      }
+    } catch {}
+
+    const fallback = await Promise.all(batch.map((t) => translateTitle(ai, t)));
+    results.push(...fallback);
   }
+
+  return results;
 }
 
 app.post('/fetch-all', async (c) => {
@@ -279,9 +310,14 @@ app.post('/fetch-all', async (c) => {
         }
       }
 
-      const translated = await Promise.all(
-        pending.map((a) => isLatinText(a.title) ? translateTitle(c.env.AI, a.title) : Promise.resolve(null))
-      );
+      const latinTitles = pending.filter((a) => isLatinText(a.title)).map((a) => a.title);
+      const latinTranslated = await translateTitles(c.env.AI, latinTitles);
+
+      const translated: (string | null)[] = [];
+      let ti = 0;
+      for (const a of pending) {
+        translated.push(isLatinText(a.title) ? latinTranslated[ti++] : null);
+      }
 
       let inserted = 0;
       for (let i = 0; i < pending.length; i++) {
@@ -385,11 +421,14 @@ app.post('/:id/fetch', async (c) => {
       }
     }
 
-    const translated = await Promise.all(
-      pending.map((a) =>
-        isLatinText(a.title) ? translateTitle(c.env.AI, a.title) : Promise.resolve(null)
-      )
-    );
+    const latinTitles = pending.filter((a) => isLatinText(a.title)).map((a) => a.title);
+    const latinTranslated = await translateTitles(c.env.AI, latinTitles);
+
+    const translated: (string | null)[] = [];
+    let ti = 0;
+    for (const a of pending) {
+      translated.push(isLatinText(a.title) ? latinTranslated[ti++] : null);
+    }
 
     let inserted = 0;
     for (let i = 0; i < pending.length; i++) {

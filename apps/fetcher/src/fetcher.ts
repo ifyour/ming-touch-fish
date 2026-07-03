@@ -5,7 +5,7 @@ import { normalizeUrl, isLatinText, shouldFetchNow, isCloudflareQuotaError } fro
 import { logger } from '@repo/telemetry';
 import type { Env } from './types.js';
 import { articleExists } from './dedup.js';
-import { translateTitle } from './translator.js';
+import { translateTitles } from './translator.js';
 
 export async function getSourcesToFetch(db: D1Database) {
   const drizzle = createDb(db);
@@ -100,8 +100,12 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
     })
     .sort((a, b) => b.publishedTime - a.publishedTime);
 
-  let stored = 0;
-  let skipped = 0;
+  const pending: Array<{
+    url: string;
+    title: string;
+    publishedTime: number;
+    metadata: Record<string, unknown>;
+  }> = [];
   let quotaError: string | null = null;
 
   for (const entry of sortedEntries) {
@@ -112,31 +116,54 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
       if (!url) continue;
 
       const exists = await articleExists(env.DB, url);
-      if (exists) {
-        skipped++;
-        continue;
-      }
-
-      const title = entry.title ?? 'Untitled';
-      const translatedTitle = isLatinText(title) ? await translateTitle(env, title) : null;
+      if (exists) continue;
 
       const extra = entry as Record<string, unknown>;
-      const metadata = {
-        description:
-          (extra['summary'] as string | undefined) ?? (extra['description'] as string | undefined) ?? '',
-        author: (extra['author'] as string | undefined) ?? (extra['creator'] as string | undefined) ?? '',
-        categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
-      };
+      pending.push({
+        url,
+        title: entry.title ?? 'Untitled',
+        publishedTime: entry.publishedTime,
+        metadata: {
+          description:
+            (extra['summary'] as string | undefined) ?? (extra['description'] as string | undefined) ?? '',
+          author: (extra['author'] as string | undefined) ?? (extra['creator'] as string | undefined) ?? '',
+          categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
+        },
+      });
+    } catch (err) {
+      const quotaMsg = isCloudflareQuotaError(err);
+      if (quotaMsg) {
+        quotaError = quotaMsg;
+        break;
+      }
+      throw err;
+    }
+  }
 
+  const latinIdx: number[] = [];
+  const latinTitles: string[] = [];
+  for (let i = 0; i < pending.length; i++) {
+    if (isLatinText(pending[i].title)) {
+      latinIdx.push(i);
+      latinTitles.push(pending[i].title);
+    }
+  }
+
+  const translated = await translateTitles(env, latinTitles);
+
+  let stored = 0;
+  for (let i = 0; i < pending.length; i++) {
+    if (quotaError) break;
+
+    try {
       await drizzle.insert(schema.articles).values({
         sourceId: source.id,
-        title,
-        translatedTitle,
-        url,
-        publishedAt: new Date(entry.publishedTime),
-        metadata,
+        title: pending[i].title,
+        translatedTitle: translated[latinIdx.indexOf(i)] ?? null,
+        url: pending[i].url,
+        publishedAt: new Date(pending[i].publishedTime),
+        metadata: pending[i].metadata,
       });
-
       stored++;
     } catch (err) {
       const quotaMsg = isCloudflareQuotaError(err);
@@ -149,15 +176,16 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
     }
   }
 
+  const deduped = sortedEntries.length - pending.length;
   if (quotaError) {
     logger.info(
-      `[${source.name}] Partial: ${stored} stored, ${skipped} dedup'd, ${sortedEntries.length - stored - skipped} remaining (quota: ${quotaError})`,
-      { service: 'fetcher', sourceId: source.id, stored, skipped, total: sortedEntries.length, quotaError }
+      `[${source.name}] Partial: ${stored} stored, ${deduped} dedup'd, ${pending.length - stored} remaining (quota: ${quotaError})`,
+      { service: 'fetcher', sourceId: source.id, stored, skipped: deduped, total: sortedEntries.length, quotaError }
     );
   } else {
     logger.info(
-      `[${source.name}] Complete: ${stored} stored, ${skipped} dedup'd out of ${sortedEntries.length} entries`,
-      { service: 'fetcher', sourceId: source.id, stored, skipped, total: sortedEntries.length }
+      `[${source.name}] Complete: ${stored} stored, ${deduped} dedup'd out of ${sortedEntries.length} entries`,
+      { service: 'fetcher', sourceId: source.id, stored, skipped: deduped, total: sortedEntries.length }
     );
   }
 
