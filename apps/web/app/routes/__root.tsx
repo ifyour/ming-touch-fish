@@ -64,6 +64,7 @@ function RootComponent() {
         <meta property="og:description" content="聚合精选技术资讯与优质内容，一站式阅读体验" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="摸鱼资讯" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <ColorSchemeScript defaultColorScheme="light" />
         <style dangerouslySetInnerHTML={{ __html: mantineCoreCss }} />
         <style dangerouslySetInnerHTML={{ __html: mantineNotificationsCss }} />
@@ -84,6 +85,7 @@ function RootComponent() {
                     style={{ display: 'flex', alignItems: 'center' }}
                   >
                     <Group gap="xs">
+                      <img src="/logo.svg" alt="摸鱼资讯" width={40} height={40} style={{ borderRadius: 6, position: 'relative', right: -4}} />
                       <Title order={3}>
                         <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
                           摸鱼资讯

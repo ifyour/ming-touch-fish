@@ -1,0 +1,46 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- 1. 极简深色圆角背景 -->
+  <rect width="100" height="100" rx="22" fill="#0F172A" />
+  
+  <!-- 2. 底部水波纹（呼应"摸鱼"场景） -->
+  <path d="M 10 92 Q 20 86 30 92 Q 40 98 50 92 Q 60 86 70 92 Q 80 98 90 92" stroke="#38BDF8" stroke-width="2" fill="none" opacity="0.4" stroke-linecap="round" />
+  <path d="M 10 98 Q 20 92 30 98 Q 40 104 50 98 Q 60 92 70 98 Q 80 104 90 98" stroke="#38BDF8" stroke-width="1.5" fill="none" opacity="0.2" stroke-linecap="round" />
+
+  <!-- 3. 资讯聚合连线（虚线代表精选资讯流） -->
+  <!-- 左上 -->
+  <line x1="15" y1="15" x2="42" y2="38" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="2 2" opacity="0.4" />
+  <circle cx="15" cy="15" r="4" fill="#38BDF8" />
+  <!-- 右上 -->
+  <line x1="85" y1="15" x2="68" y2="38" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="2 2" opacity="0.4" />
+  <circle cx="85" cy="15" r="4" fill="#38BDF8" />
+  <!-- 左下 -->
+  <line x1="15" y1="85" x2="42" y2="62" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="2 2" opacity="0.4" />
+  <circle cx="15" cy="85" r="4" fill="#38BDF8" />
+  <!-- 右下 -->
+  <line x1="85" y1="85" x2="68" y2="62" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="2 2" opacity="0.4" />
+  <circle cx="85" cy="85" r="4" fill="#38BDF8" />
+
+  <!-- 4. 科技聚合环 -->
+  <circle cx="50" cy="50" r="42" stroke="#1E293B" stroke-width="1.5" stroke-dasharray="3 3" fill="none" />
+
+  <!-- 5. 核心：摸鱼的"鱼"（干净简洁的线条艺术） -->
+  <!-- 鱼身轮廓 -->
+  <path d="M 75 50 C 75 35, 55 35, 40 40 L 25 35 L 32 50 L 25 65 L 40 60 C 55 65, 75 65, 75 50 Z" stroke="#38BDF8" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- 鱼尾内部细节 -->
+  <path d="M 28 38 L 32 50 L 28 62" stroke="#38BDF8" stroke-width="2" fill="none" opacity="0.6" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- 鱼鳍 -->
+  <path d="M 45 38 L 50 30 L 55 37" stroke="#38BDF8" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 45 55 L 40 64 L 48 60" stroke="#38BDF8" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- 鱼身内部科技网络纹路（极简线条） -->
+  <path d="M 50 45 L 60 50 L 50 55" stroke="#38BDF8" stroke-width="1.5" fill="none" opacity="0.4" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- 鱼眼（科技感空心瞳孔） -->
+  <circle cx="68" cy="45" r="4" stroke="#38BDF8" stroke-width="1.5" fill="#0F172A" />
+  <circle cx="69" cy="45" r="1.5" fill="#38BDF8" />
+  
+  <!-- 鱼嘴微笑表情 -->
+  <path d="M 60 55 Q 65 58 70 55" stroke="#38BDF8" stroke-width="2" fill="none" stroke-linecap="round" />
+</svg>
