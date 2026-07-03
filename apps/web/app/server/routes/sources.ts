@@ -212,28 +212,27 @@ app.delete('/:id', async (c) => {
 });
 
 const TRANSLATE_SYSTEM_PROMPT =
-  'Translate the English tech article titles into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Input is a JSON array of strings. (4) Respond with ONLY a JSON array of strings in the same order.';
+  'Translate the English tech article titles into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Output ONLY translations, one per line, in the same order as input. No extra text.';
 
-const BATCH_MAX = 30;
+const BATCH_MAX = 10;
 
 async function translateTitle(ai: Bindings['AI'], title: string): Promise<string | null> {
   try {
     const response = await ai.run('@cf/zai-org/glm-4.7-flash', {
       messages: [
         { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
-        { role: 'user', content: JSON.stringify([title]) },
+        { role: 'user', content: title },
       ],
     }) as { response?: string };
 
-    const parsed = JSON.parse(response?.response?.trim() ?? '[]');
-    if (Array.isArray(parsed) && typeof parsed[0] === 'string') return parsed[0];
-  } catch {}
-  return null;
+    return response?.response?.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 async function translateTitles(ai: Bindings['AI'], titles: string[]): Promise<(string | null)[]> {
   if (titles.length === 0) return [];
-  if (titles.length === 1) return [await translateTitle(ai, titles[0])];
 
   const results: (string | null)[] = [];
 
@@ -243,13 +242,13 @@ async function translateTitles(ai: Bindings['AI'], titles: string[]): Promise<(s
       const response = await ai.run('@cf/zai-org/glm-4.7-flash', {
         messages: [
           { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify(batch) },
+          { role: 'user', content: batch.join('\n') },
         ],
       }) as { response?: string };
 
-      const parsed = JSON.parse(response?.response?.trim() ?? '');
-      if (Array.isArray(parsed) && parsed.length === batch.length && parsed.every((s: unknown) => typeof s === 'string')) {
-        results.push(...(parsed as string[]));
+      const lines = response?.response?.trim()?.split('\n') ?? [];
+      if (lines.length === batch.length && lines.every((s) => s.length > 0)) {
+        results.push(...lines);
         continue;
       }
     } catch {}

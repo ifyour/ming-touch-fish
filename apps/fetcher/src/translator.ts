@@ -2,19 +2,16 @@ import { logger } from '@repo/telemetry';
 import type { Env } from './types.js';
 
 const SYSTEM_PROMPT =
-  'Translate the English tech article titles into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Input is a JSON array of strings. (4) Respond with ONLY a JSON array of strings in the same order.';
+  'Translate the English tech article titles into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Output ONLY translations, one per line, in the same order as input. No extra text.';
 
-const MAX_BATCH_SIZE = 30;
+const BATCH_MAX = 10;
 
 export async function translateTitle(env: Env, title: string): Promise<string> {
   try {
     const response = await env.AI.run('@cf/zai-org/glm-4.7-flash', {
       messages: [
-        {
-          role: 'system',
-          content: SYSTEM_PROMPT,
-        },
-        { role: 'user', content: JSON.stringify([title]) },
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: title },
       ],
     });
 
@@ -24,10 +21,7 @@ export async function translateTitle(env: Env, title: string): Promise<string> {
       'response' in response &&
       typeof response.response === 'string'
     ) {
-      const parsed = JSON.parse(response.response.trim());
-      if (Array.isArray(parsed) && typeof parsed[0] === 'string') {
-        return parsed[0];
-      }
+      return response.response.trim();
     }
   } catch (err) {
     logger.error('Translation failed, falling back to original title', { service: 'fetcher', error: err });
@@ -38,20 +32,16 @@ export async function translateTitle(env: Env, title: string): Promise<string> {
 
 export async function translateTitles(env: Env, titles: string[]): Promise<(string | null)[]> {
   if (titles.length === 0) return [];
-  if (titles.length === 1) {
-    const t = await translateTitle(env, titles[0]);
-    return [t];
-  }
 
   const results: (string | null)[] = [];
 
-  for (let i = 0; i < titles.length; i += MAX_BATCH_SIZE) {
-    const batch = titles.slice(i, i + MAX_BATCH_SIZE);
+  for (let i = 0; i < titles.length; i += BATCH_MAX) {
+    const batch = titles.slice(i, i + BATCH_MAX);
     try {
       const response = await env.AI.run('@cf/zai-org/glm-4.7-flash', {
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify(batch) },
+          { role: 'user', content: batch.join('\n') },
         ],
       });
 
@@ -61,9 +51,9 @@ export async function translateTitles(env: Env, titles: string[]): Promise<(stri
         'response' in response &&
         typeof response.response === 'string'
       ) {
-        const parsed = JSON.parse(response.response.trim());
-        if (Array.isArray(parsed) && parsed.length === batch.length && parsed.every((s: unknown) => typeof s === 'string')) {
-          results.push(...(parsed as string[]));
+        const lines = response.response.trim().split('\n');
+        if (lines.length === batch.length && lines.every((s) => s.length > 0)) {
+          results.push(...lines);
           continue;
         }
       }
