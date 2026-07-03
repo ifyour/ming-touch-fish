@@ -1,5 +1,6 @@
 import type { MessageBatch, ScheduledController } from '@cloudflare/workers-types';
 import type { QueueMessage } from '@repo/shared';
+import { isCloudflareQuotaError } from '@repo/shared';
 import { fetchAndStore, getSourcesToFetch } from './fetcher.js';
 import type { Env } from './types.js';
 
@@ -31,8 +32,14 @@ export default {
         await fetchAndStore(env, message.body.sourceId);
         message.ack();
       } catch (err) {
-        console.error(`Failed to process source ${message.body.sourceId}:`, err);
-        message.retry();
+        const quotaMsg = isCloudflareQuotaError(err);
+        if (quotaMsg) {
+          console.error(`Quota error for source ${message.body.sourceId}, acking (retry won't help): ${quotaMsg}`);
+          message.ack();
+        } else {
+          console.error(`Failed to process source ${message.body.sourceId}, will retry:`, err);
+          message.retry();
+        }
       }
     }
   },

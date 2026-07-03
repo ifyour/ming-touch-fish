@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { createDb, schema } from '@repo/db';
 import { extract, extractFromXml, type FeedData } from '@extractus/feed-extractor';
-import { isLatinText, normalizeUrl } from '@repo/shared';
+import { isLatinText, normalizeUrl, isCloudflareQuotaError } from '@repo/shared';
 import type { SourceInput } from '@repo/shared';
 import type { Bindings } from '../types';
 
@@ -229,48 +229,74 @@ app.post('/fetch-all', async (c) => {
   const sources = await db.select().from(schema.sources).where(eq(schema.sources.isActive, true));
 
   let total = 0;
+  const sourceResults: Array<{ name: string; stored: number; warning?: string }> = [];
   for (const source of sources) {
     try {
       const feed = await fetchFeed(source.url);
       if (!feed?.entries?.length) continue;
 
+      const sorted = feed.entries
+        .map((entry) => {
+          const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
+          return { ...entry, publishedTime };
+        })
+        .sort((a, b) => b.publishedTime - a.publishedTime);
+
       const pending: Array<{
         title: string; url: string; publishedAt: Date; metadata: Record<string, unknown>;
       }> = [];
 
-      for (const entry of feed.entries) {
-        const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
-        if (pending.length >= 10) break;
-        const url = normalizeUrl(entry.link ?? '');
-        if (!url) continue;
-        const existing = await db.select().from(schema.articles).where(eq(schema.articles.url, url)).get();
-        if (existing) continue;
-        const extra = entry as unknown as Record<string, unknown>;
-        pending.push({
-          title: entry.title ?? 'Untitled',
-          url,
-          publishedAt: new Date(publishedTime),
-          metadata: {
-            description: (extra['summary'] as string) ?? '',
-            author: (extra['author'] as string) ?? '',
-            categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
-          },
-        });
+      let quotaError: string | null = null;
+
+      for (const entry of sorted) {
+        try {
+          const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
+          const url = normalizeUrl(entry.link ?? '');
+          if (!url) continue;
+          const existing = await db.select().from(schema.articles).where(eq(schema.articles.url, url)).get();
+          if (existing) continue;
+          const extra = entry as unknown as Record<string, unknown>;
+          pending.push({
+            title: entry.title ?? 'Untitled',
+            url,
+            publishedAt: new Date(publishedTime),
+            metadata: {
+              description: (extra['summary'] as string) ?? '',
+              author: (extra['author'] as string) ?? '',
+              categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
+            },
+          });
+        } catch (err) {
+          const quotaMsg = isCloudflareQuotaError(err);
+          if (quotaMsg) { quotaError = quotaMsg; break; }
+          throw err;
+        }
       }
 
       const translated = await Promise.all(
         pending.map((a) => isLatinText(a.title) ? translateTitle(c.env.AI, a.title) : Promise.resolve(null))
       );
 
+      let inserted = 0;
       for (let i = 0; i < pending.length; i++) {
-        await db.insert(schema.articles).values({
-          sourceId: source.id,
-          title: pending[i].title,
-          translatedTitle: translated[i],
-          url: pending[i].url,
-          publishedAt: pending[i].publishedAt,
-          metadata: pending[i].metadata,
-        });
+        try {
+          await db.insert(schema.articles).values({
+            sourceId: source.id,
+            title: pending[i].title,
+            translatedTitle: translated[i],
+            url: pending[i].url,
+            publishedAt: pending[i].publishedAt,
+            metadata: pending[i].metadata,
+          });
+          inserted++;
+        } catch (err) {
+          const quotaMsg = isCloudflareQuotaError(err);
+          if (quotaMsg) {
+            if (!quotaError) quotaError = quotaMsg;
+            break;
+          }
+          throw err;
+        }
       }
 
       await db
@@ -278,12 +304,19 @@ app.post('/fetch-all', async (c) => {
         .set({ lastFetchedAt: new Date(), updatedAt: new Date() })
         .where(eq(schema.sources.id, source.id));
 
-      total += pending.length;
+      total += inserted;
+      const result: { name: string; stored: number; warning?: string } = { name: source.name, stored: inserted };
+      if (quotaError) {
+        result.warning = quotaError;
+        console.error(`Fetch-all partial for ${source.name}: ${quotaError}`);
+      }
+      sourceResults.push(result);
     } catch (err) {
       console.error(`Fetch-all failed for ${source.name}:`, err);
+      sourceResults.push({ name: source.name, stored: 0, warning: String(err) });
     }
   }
-  return c.json({ success: true, totalFetched: total });
+  return c.json({ success: true, totalFetched: total, sources: sourceResults });
 });
 
 app.post('/:id/fetch', async (c) => {
@@ -300,6 +333,13 @@ app.post('/:id/fetch', async (c) => {
       return c.json({ success: true, articles: 0 });
     }
 
+    const sorted = feed.entries
+      .map((entry) => {
+        const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
+        return { ...entry, publishedTime };
+      })
+      .sort((a, b) => b.publishedTime - a.publishedTime);
+
     const pending: Array<{
       title: string;
       url: string;
@@ -307,31 +347,36 @@ app.post('/:id/fetch', async (c) => {
       metadata: Record<string, unknown>;
     }> = [];
 
-    for (const entry of feed.entries) {
-      const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
-      if (pending.length >= 10) break;
+    let quotaError: string | null = null;
 
-      const url = normalizeUrl(entry.link ?? '');
-      if (!url) continue;
+    for (const entry of sorted) {
+      try {
+        const url = normalizeUrl(entry.link ?? '');
+        if (!url) continue;
 
-      const existing = await db
-        .select()
-        .from(schema.articles)
-        .where(eq(schema.articles.url, url))
-        .get();
-      if (existing) continue;
+        const existing = await db
+          .select()
+          .from(schema.articles)
+          .where(eq(schema.articles.url, url))
+          .get();
+        if (existing) continue;
 
-      const extra = entry as unknown as Record<string, unknown>;
-      pending.push({
-        title: entry.title ?? 'Untitled',
-        url,
-        publishedAt: new Date(publishedTime),
-        metadata: {
-          description: (extra['summary'] as string) ?? '',
-          author: (extra['author'] as string) ?? '',
-          categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
-        },
-      });
+        const extra = entry as unknown as Record<string, unknown>;
+        pending.push({
+          title: entry.title ?? 'Untitled',
+          url,
+          publishedAt: new Date(entry.publishedTime),
+          metadata: {
+            description: (extra['summary'] as string) ?? '',
+            author: (extra['author'] as string) ?? '',
+            categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
+          },
+        });
+      } catch (err) {
+        const quotaMsg = isCloudflareQuotaError(err);
+        if (quotaMsg) { quotaError = quotaMsg; break; }
+        throw err;
+      }
     }
 
     const translated = await Promise.all(
@@ -340,15 +385,26 @@ app.post('/:id/fetch', async (c) => {
       )
     );
 
+    let inserted = 0;
     for (let i = 0; i < pending.length; i++) {
-      await db.insert(schema.articles).values({
-        sourceId: source.id,
-        title: pending[i].title,
-        translatedTitle: translated[i],
-        url: pending[i].url,
-        publishedAt: pending[i].publishedAt,
-        metadata: pending[i].metadata,
-      });
+      try {
+        await db.insert(schema.articles).values({
+          sourceId: source.id,
+          title: pending[i].title,
+          translatedTitle: translated[i],
+          url: pending[i].url,
+          publishedAt: pending[i].publishedAt,
+          metadata: pending[i].metadata,
+        });
+        inserted++;
+      } catch (err) {
+        const quotaMsg = isCloudflareQuotaError(err);
+        if (quotaMsg) {
+          if (!quotaError) quotaError = quotaMsg;
+          break;
+        }
+        throw err;
+      }
     }
 
     await db
@@ -356,7 +412,12 @@ app.post('/:id/fetch', async (c) => {
       .set({ lastFetchedAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.sources.id, id));
 
-    return c.json({ success: true, articles: pending.length });
+    const resp: Record<string, unknown> = { success: true, articles: inserted };
+    if (quotaError) {
+      resp.warning = quotaError;
+      resp.totalFound = pending.length;
+    }
+    return c.json(resp);
   } catch (err) {
     return c.json({ error: String(err) }, 500);
   }

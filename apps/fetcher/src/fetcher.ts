@@ -1,12 +1,10 @@
 import { extract, extractFromXml, type FeedData } from '@extractus/feed-extractor';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@repo/db';
-import { normalizeUrl, isLatinText, shouldFetchNow } from '@repo/shared';
+import { normalizeUrl, isLatinText, shouldFetchNow, isCloudflareQuotaError } from '@repo/shared';
 import type { Env } from './types.js';
 import { articleExists } from './dedup.js';
 import { translateTitle } from './translator.js';
-
-const MAX_ARTICLES_PER_SOURCE = 10;
 
 export async function getSourcesToFetch(db: D1Database) {
   const drizzle = createDb(db);
@@ -94,45 +92,70 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
     return;
   }
 
-  const recentEntries = feed.entries
+  const sortedEntries = feed.entries
     .map((entry) => {
       const publishedTime = entry.published ? new Date(entry.published).getTime() : Date.now();
       return { ...entry, publishedTime };
     })
-    .sort((a, b) => b.publishedTime - a.publishedTime)
-    .slice(0, MAX_ARTICLES_PER_SOURCE);
+    .sort((a, b) => b.publishedTime - a.publishedTime);
 
-  for (const entry of recentEntries) {
-    const url = normalizeUrl(entry.link ?? '');
-    if (!url) continue;
+  let stored = 0;
+  let skipped = 0;
+  let quotaError: string | null = null;
 
-    const exists = await articleExists(env.DB, url);
-    if (exists) {
-      console.log(`Skipping duplicate article: ${entry.title}`);
-      continue;
+  for (const entry of sortedEntries) {
+    if (quotaError) break;
+
+    try {
+      const url = normalizeUrl(entry.link ?? '');
+      if (!url) continue;
+
+      const exists = await articleExists(env.DB, url);
+      if (exists) {
+        skipped++;
+        continue;
+      }
+
+      const title = entry.title ?? 'Untitled';
+      const translatedTitle = isLatinText(title) ? await translateTitle(env, title) : null;
+
+      const extra = entry as Record<string, unknown>;
+      const metadata = {
+        description:
+          (extra['summary'] as string | undefined) ?? (extra['description'] as string | undefined) ?? '',
+        author: (extra['author'] as string | undefined) ?? (extra['creator'] as string | undefined) ?? '',
+        categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
+      };
+
+      await drizzle.insert(schema.articles).values({
+        sourceId: source.id,
+        title,
+        translatedTitle,
+        url,
+        publishedAt: new Date(entry.publishedTime),
+        metadata,
+      });
+
+      stored++;
+    } catch (err) {
+      const quotaMsg = isCloudflareQuotaError(err);
+      if (quotaMsg) {
+        quotaError = quotaMsg;
+        console.error(`Quota limit reached after storing ${stored} articles: ${quotaMsg}`);
+        break;
+      }
+      throw err;
     }
+  }
 
-    const title = entry.title ?? 'Untitled';
-    const translatedTitle = isLatinText(title) ? await translateTitle(env, title) : null;
-
-    const extra = entry as Record<string, unknown>;
-    const metadata = {
-      description:
-        (extra['summary'] as string | undefined) ?? (extra['description'] as string | undefined) ?? '',
-      author: (extra['author'] as string | undefined) ?? (extra['creator'] as string | undefined) ?? '',
-      categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
-    };
-
-    await drizzle.insert(schema.articles).values({
-      sourceId: source.id,
-      title,
-      translatedTitle,
-      url,
-      publishedAt: new Date(entry.publishedTime),
-      metadata,
-    });
-
-    console.log(`Stored article: ${title}`);
+  if (quotaError) {
+    console.log(
+      `[${source.name}] Partial: ${stored} stored, ${skipped} dedup'd, ${sortedEntries.length - stored - skipped} remaining (quota: ${quotaError})`
+    );
+  } else {
+    console.log(
+      `[${source.name}] Complete: ${stored} stored, ${skipped} dedup'd out of ${sortedEntries.length} entries`
+    );
   }
 
   await updateLastFetched(drizzle, source.id);

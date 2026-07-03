@@ -62,6 +62,34 @@ export function shouldFetchNow(
 }
 
 /**
+ * Detect Cloudflare Workers quota/limit errors and return a user-facing message.
+ * Returns null if the error is not quota-related (transient errors, bugs, etc.).
+ */
+export function isCloudflareQuotaError(err: unknown): string | null {
+  if (!(err instanceof Error)) return null;
+  const msg = err.message;
+  const code = (err as any)?.code;
+
+  if (code === 1101 || /cpu time/i.test(msg)) {
+    return 'Cloudflare Workers CPU time quota exceeded (free tier: 10ms). Some articles were processed before timeout. Try reducing fetch frequency or upgrading your plan.';
+  }
+  if (code === 1027 || /\bsubrequest\b/i.test(msg)) {
+    return 'Cloudflare Workers subrequest quota exceeded (free tier: 50 per request). Some articles were processed before the limit. Try reducing fetch frequency.';
+  }
+  if (/429|too many requests/i.test(msg)) {
+    return 'API rate limit exceeded. Please try again later.';
+  }
+  if (/D1_ERROR|SQLITE_BUSY|database.*(?:quota|limit|exceed)/i.test(msg)) {
+    return 'D1 database quota exceeded (free tier: 5M read units / 50k write units per day). Articles saved so far are stored; remaining will be retried next cycle.';
+  }
+  if (/AI.*(?:quota|limit|rate|exceed)/i.test(msg) || /quota.*ai/i.test(msg)) {
+    return 'Workers AI daily quota exceeded. Articles were saved without Chinese title translation. Translation will resume when quota resets.';
+  }
+
+  return null;
+}
+
+/**
  * Format a date relative to now (e.g. "2 hours ago").
  */
 export function formatRelativeTime(date: Date | string | null | undefined): string {
