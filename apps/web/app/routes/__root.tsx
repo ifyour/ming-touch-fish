@@ -1,6 +1,7 @@
 import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { Scripts } from '@tanstack/react-start';
-import { AppShell, Container, Title, Text, Group, Button, ColorSchemeScript } from '@mantine/core';
+import { Container, Title, Text, Group, Button, Box, ColorSchemeScript } from '@mantine/core';
+import { Footer } from '../components/Footer';
 import { useRef, useCallback } from 'react';
 import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
@@ -57,7 +58,7 @@ function RootComponent() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>摸鱼资讯 - TouchFish News</title>
+        <title>摸鱼资讯 - 聚合精选技术资讯与优质内容</title>
         <meta name="description" content="摸鱼资讯 - 聚合精选技术资讯与优质内容，一站式阅读体验" />
         <meta property="og:title" content="摸鱼资讯 - TouchFish News" />
         <meta property="og:description" content="聚合精选技术资讯与优质内容，一站式阅读体验" />
@@ -73,11 +74,13 @@ function RootComponent() {
           <QueryClientProvider client={queryClient}>
               <MantineProvider theme={theme} forceColorScheme="light">
                 <Notifications position="top-right" />
-                <AppShell header={{ height: 60 }} padding="md">
-                <AppShell.Header>
+                <Box
+                  component="header"
+                  py="sm"
+                  style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
+                >
                   <Container
                     size="xl"
-                    h="100%"
                     style={{ display: 'flex', alignItems: 'center' }}
                   >
                     <Group gap="xs">
@@ -97,11 +100,17 @@ function RootComponent() {
                       </Text>
                     </Group>
                   </Container>
-                </AppShell.Header>
-                <AppShell.Main>
+                </Box>
+                <Box p="md">
                   <Outlet />
-                </AppShell.Main>
-              </AppShell>
+                </Box>
+              <Box
+                component="footer"
+                py="md"
+                style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}
+              >
+                <Footer />
+              </Box>
             </MantineProvider>
           </QueryClientProvider>
         </div>
