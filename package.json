@@ -11,6 +11,7 @@
     "dev:fetcher": "turbo run dev --filter=@repo/fetcher",
     "db:generate": "turbo run db:generate --filter=@repo/db",
     "db:migrate": "turbo run db:migrate --filter=@repo/db",
+    "deploy": "turbo run deploy",
     "deploy:web": "turbo run deploy --filter=@repo/web",
     "deploy:fetcher": "turbo run deploy --filter=@repo/fetcher",
     "typecheck": "turbo run typecheck",
