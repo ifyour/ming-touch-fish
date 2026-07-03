@@ -22,6 +22,7 @@
     "@mantine/notifications": "^7.17.0",
     "@repo/db": "workspace:*",
     "@repo/shared": "workspace:*",
+    "@repo/telemetry": "workspace:*",
     "@tabler/icons-react": "^3.31.0",
     "@tanstack/react-query": "^5.66.0",
     "@tanstack/react-router": "1.114.1",

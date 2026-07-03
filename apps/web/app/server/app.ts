@@ -1,14 +1,15 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
+import { logger as honoLogger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
+import { logger } from '@repo/telemetry';
 import sourcesRoute from './routes/sources';
 import articlesRoute from './routes/articles';
 import type { Bindings } from './types';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-app.use('*', logger());
+app.use('*', honoLogger());
 app.use(
   '*',
   cors({
@@ -24,7 +25,7 @@ app.use(
 app.use('*', prettyJSON());
 
 app.onError((err, c) => {
-  console.error('API error:', err);
+  logger.error('API error', { service: 'web-api', error: err });
   return c.json({ error: err.message ?? 'Internal Server Error' }, 500);
 });
 

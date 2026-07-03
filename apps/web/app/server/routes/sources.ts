@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createDb, schema } from '@repo/db';
 import { extract, extractFromXml, type FeedData } from '@extractus/feed-extractor';
 import { isLatinText, normalizeUrl, isCloudflareQuotaError } from '@repo/shared';
+import { logger } from '@repo/telemetry';
 import type { SourceInput } from '@repo/shared';
 import type { Bindings } from '../types';
 
@@ -64,7 +65,7 @@ async function fetchFeed(url: string): Promise<FeedData> {
         }),
       }, { headers: { 'user-agent': ua }, signal: AbortSignal.timeout(10000) });
     } catch (err) {
-      console.warn(`Extract failed for ${url} (UA: ${ua.slice(0, 40)}...):`, err);
+      logger.warn(`Extract failed for ${url} with UA [${ua.slice(0, 40)}...]`, { service: 'web-api', error: err });
     }
   }
   for (const ua of uas) {
@@ -80,7 +81,7 @@ async function fetchFeed(url: string): Promise<FeedData> {
         }),
       });
     }
-    console.warn(`Fetch failed for ${url} (UA: ${ua.slice(0, 40)}...): HTTP ${resp.status}`);
+    logger.warn(`Fetch failed for ${url} with UA [${ua.slice(0, 40)}...]: HTTP ${resp.status}`, { service: 'web-api' });
   }
   throw new Error(`All fetch attempts failed for ${url}`);
 }
@@ -308,11 +309,11 @@ app.post('/fetch-all', async (c) => {
       const result: { name: string; stored: number; warning?: string } = { name: source.name, stored: inserted };
       if (quotaError) {
         result.warning = quotaError;
-        console.error(`Fetch-all partial for ${source.name}: ${quotaError}`);
+        logger.error(`Fetch-all partial for ${source.name}: ${quotaError}`, { service: 'web-api', sourceName: source.name, error: quotaError });
       }
       sourceResults.push(result);
     } catch (err) {
-      console.error(`Fetch-all failed for ${source.name}:`, err);
+      logger.error(`Fetch-all failed for ${source.name}`, { service: 'web-api', sourceName: source.name, error: err });
       sourceResults.push({ name: source.name, stored: 0, warning: String(err) });
     }
   }

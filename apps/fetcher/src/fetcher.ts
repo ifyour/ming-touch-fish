@@ -2,6 +2,7 @@ import { extract, extractFromXml, type FeedData } from '@extractus/feed-extracto
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@repo/db';
 import { normalizeUrl, isLatinText, shouldFetchNow, isCloudflareQuotaError } from '@repo/shared';
+import { logger } from '@repo/telemetry';
 import type { Env } from './types.js';
 import { articleExists } from './dedup.js';
 import { translateTitle } from './translator.js';
@@ -21,11 +22,11 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
     throw new Error(`Source not found: ${sourceId}`);
   }
   if (!source.isActive) {
-    console.log(`Source ${source.id} is inactive, skipping`);
+    logger.warn(`Source ${source.id} is inactive, skipping`, { service: 'fetcher', sourceId: source.id });
     return;
   }
 
-  console.log(`Fetching source: ${source.name} (${source.url})`);
+  logger.info(`Fetching source: ${source.name}`, { service: 'fetcher', sourceId: source.id, url: source.url });
 
   const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
   const V2EX_API = 'https://www.v2ex.com/api/topics/latest.json';
@@ -63,7 +64,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
           }),
         }, { headers: { 'user-agent': ua }, signal: AbortSignal.timeout(10000) });
       } catch (err) {
-        console.warn(`Extract failed for ${url} (UA: ${ua.slice(0, 40)}...):`, err);
+        logger.warn(`Extract failed for ${url} with UA [${ua.slice(0, 40)}...]`, { service: 'fetcher', sourceId, error: err });
       }
     }
     for (const ua of uas) {
@@ -79,7 +80,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
           }),
         });
       }
-      console.warn(`Fetch failed for ${url} (UA: ${ua.slice(0, 40)}...): HTTP ${resp.status}`);
+      logger.warn(`Fetch failed for ${url} with UA [${ua.slice(0, 40)}...]: HTTP ${resp.status}`, { service: 'fetcher', sourceId });
     }
     throw new Error(`All fetch attempts failed for ${url}`);
   }
@@ -87,7 +88,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
   const feed = await fetchFeed(source.url);
 
   if (!feed || !feed.entries || feed.entries.length === 0) {
-    console.log(`No entries found for source: ${source.name}`);
+    logger.info(`No entries found for source: ${source.name}`, { service: 'fetcher', sourceId: source.id });
     await updateLastFetched(drizzle, source.id);
     return;
   }
@@ -141,7 +142,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
       const quotaMsg = isCloudflareQuotaError(err);
       if (quotaMsg) {
         quotaError = quotaMsg;
-        console.error(`Quota limit reached after storing ${stored} articles: ${quotaMsg}`);
+        logger.error(`Quota limit reached after storing ${stored} articles: ${quotaMsg}`, { service: 'fetcher', sourceId: source.id, error: err });
         break;
       }
       throw err;
@@ -149,12 +150,14 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
   }
 
   if (quotaError) {
-    console.log(
-      `[${source.name}] Partial: ${stored} stored, ${skipped} dedup'd, ${sortedEntries.length - stored - skipped} remaining (quota: ${quotaError})`
+    logger.info(
+      `[${source.name}] Partial: ${stored} stored, ${skipped} dedup'd, ${sortedEntries.length - stored - skipped} remaining (quota: ${quotaError})`,
+      { service: 'fetcher', sourceId: source.id, stored, skipped, total: sortedEntries.length, quotaError }
     );
   } else {
-    console.log(
-      `[${source.name}] Complete: ${stored} stored, ${skipped} dedup'd out of ${sortedEntries.length} entries`
+    logger.info(
+      `[${source.name}] Complete: ${stored} stored, ${skipped} dedup'd out of ${sortedEntries.length} entries`,
+      { service: 'fetcher', sourceId: source.id, stored, skipped, total: sortedEntries.length }
     );
   }
 

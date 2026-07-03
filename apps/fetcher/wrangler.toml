@@ -24,3 +24,7 @@ migrations_dir = "../../packages/db/migrations"
 
 [ai]
 binding = "AI"
+
+[observability]
+enabled = true
+head_sampling_rate = 1

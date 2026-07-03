@@ -12,6 +12,7 @@
     "@extractus/feed-extractor": "^7.1.0",
     "@repo/db": "workspace:*",
     "@repo/shared": "workspace:*",
+    "@repo/telemetry": "workspace:*",
     "drizzle-orm": "^0.39.0"
   },
   "devDependencies": {

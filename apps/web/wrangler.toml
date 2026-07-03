@@ -15,3 +15,4 @@ queue = "news-fetch-queue"
 
 [ai]
 binding = "AI"
+

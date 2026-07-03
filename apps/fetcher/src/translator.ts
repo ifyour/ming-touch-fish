@@ -1,3 +1,4 @@
+import { logger } from '@repo/telemetry';
 import type { Env } from './types.js';
 
 export async function translateTitle(env: Env, title: string): Promise<string> {
@@ -17,7 +18,7 @@ export async function translateTitle(env: Env, title: string): Promise<string> {
       return response.translated_text;
     }
   } catch (err) {
-    console.error('Translation failed, falling back to original title:', err);
+    logger.error('Translation failed, falling back to original title', { service: 'fetcher', error: err });
   }
 
   return title;
