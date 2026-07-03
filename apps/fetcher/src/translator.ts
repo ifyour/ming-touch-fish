@@ -61,8 +61,9 @@ export async function translateTitles(env: Env, titles: string[]): Promise<(stri
       logger.warn('Batch translation failed, falling back to individual', { service: 'fetcher', error: err });
     }
 
-    const fallback = await Promise.all(batch.map((t) => translateTitle(env, t)));
-    results.push(...fallback);
+    for (const t of batch) {
+      results.push(await translateTitle(env, t));
+    }
   }
 
   return results;

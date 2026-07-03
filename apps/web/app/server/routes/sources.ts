@@ -211,16 +211,15 @@ app.delete('/:id', async (c) => {
   return c.json({ success: true });
 });
 
-const TRANSLATE_SYSTEM_PROMPT =
-  'Translate the English tech article titles into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Output ONLY translations, one per line, in the same order as input. No extra text.';
-
-const BATCH_MAX = 10;
-
 async function translateTitle(ai: Bindings['AI'], title: string): Promise<string | null> {
   try {
     const response = await ai.run('@cf/zai-org/glm-4.7-flash', {
       messages: [
-        { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
+        {
+          role: 'system',
+          content:
+            'Translate the English tech article title into natural Chinese. Rules: (1) Keep Cloudflare product names untranslated: Workers, Durable Objects, R2, KV, D1, Turnstile, Queues, Cron Triggers, Email Workers, Analytics Engine, Secrets, Environments, AI Gateway, Vectorize. (2) Keep other English brand/product names when that sounds more natural. (3) Output ONLY the translation, no explanation.',
+        },
         { role: 'user', content: title },
       ],
     }) as { response?: string };
@@ -231,32 +230,11 @@ async function translateTitle(ai: Bindings['AI'], title: string): Promise<string
   }
 }
 
-async function translateTitles(ai: Bindings['AI'], titles: string[]): Promise<(string | null)[]> {
-  if (titles.length === 0) return [];
-
+async function translateTitlesSequential(ai: Bindings['AI'], titles: string[]): Promise<(string | null)[]> {
   const results: (string | null)[] = [];
-
-  for (let i = 0; i < titles.length; i += BATCH_MAX) {
-    const batch = titles.slice(i, i + BATCH_MAX);
-    try {
-      const response = await ai.run('@cf/zai-org/glm-4.7-flash', {
-        messages: [
-          { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
-          { role: 'user', content: batch.join('\n') },
-        ],
-      }) as { response?: string };
-
-      const lines = response?.response?.trim()?.split('\n') ?? [];
-      if (lines.length === batch.length && lines.every((s) => s.length > 0)) {
-        results.push(...lines);
-        continue;
-      }
-    } catch {}
-
-    const fallback = await Promise.all(batch.map((t) => translateTitle(ai, t)));
-    results.push(...fallback);
+  for (const title of titles) {
+    results.push(await translateTitle(ai, title));
   }
-
   return results;
 }
 
@@ -310,7 +288,7 @@ app.post('/fetch-all', async (c) => {
       }
 
       const latinTitles = pending.filter((a) => isLatinText(a.title)).map((a) => a.title);
-      const latinTranslated = await translateTitles(c.env.AI, latinTitles);
+      const latinTranslated = await translateTitlesSequential(c.env.AI, latinTitles);
 
       const translated: (string | null)[] = [];
       let ti = 0;
@@ -421,7 +399,7 @@ app.post('/:id/fetch', async (c) => {
     }
 
     const latinTitles = pending.filter((a) => isLatinText(a.title)).map((a) => a.title);
-    const latinTranslated = await translateTitles(c.env.AI, latinTitles);
+    const latinTranslated = await translateTitlesSequential(c.env.AI, latinTitles);
 
     const translated: (string | null)[] = [];
     let ti = 0;
