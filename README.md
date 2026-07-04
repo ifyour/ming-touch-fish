@@ -1,6 +1,6 @@
 # Cloudflare 个人资讯聚合站点
 
-基于 Cloudflare 全家桶（Pages / Workers / D1 / Queues / Workers AI）的个人资讯聚合应用。
+基于 Cloudflare 全家桶（Pages / Workers / D1 / Queues）的个人资讯聚合应用。
 
 ## 技术栈
 
@@ -8,7 +8,7 @@
 - **后端 API**：Hono（通过 TanStack Start API 通配路由挂载）
 - **数据库**：Cloudflare D1 + Drizzle ORM
 - **定时抓取**：Cloudflare Workers + Cron Triggers + Queues
-- **翻译**：Cloudflare Workers AI（`@cf/meta/m2m100-1.2b`）
+- **翻译**：DeepL API v2（英文标题 → 中文，批量上限 50 条/请求）
 
 ## 项目结构
 
@@ -19,7 +19,8 @@
 │   └── fetcher/      # 定时抓取 Worker（Cloudflare Workers）
 ├── packages/
 │   ├── db/           # Drizzle schema + D1 client
-│   └── shared/       # 共享类型与工具
+│   ├── shared/       # 共享类型与工具
+│   └── telemetry/    # 结构化日志
 └── package.json
 ```
 
@@ -48,7 +49,15 @@ wrangler d1 migrations apply news-aggregator --local
 wrangler queues create news-fetch-queue
 ```
 
-### 4. 启动服务
+### 4. 配置 DeepL API key
+
+```bash
+# 复制模板到 apps/fetcher/.dev.vars，填入你的 DeepL API key
+# .dev.vars 已被 gitignore，仅用于本地开发
+cp apps/fetcher/.dev.vars.example apps/fetcher/.dev.vars
+```
+
+### 5. 启动服务
 
 ```bash
 # 终端 1：启动前端 + API
@@ -58,7 +67,7 @@ pnpm dev:web
 pnpm dev:fetcher
 ```
 
-访问 http://localhost:3000 查看首页，http://localhost:3000/admin 管理资讯源。
+访问 http://localhost:3000 查看首页。管理后台入口为 http://localhost:3000/fish（也可在首页点击页头 "TouchFish News" 文字 3 次进入）。
 
 ## 生产部署
 
@@ -74,7 +83,14 @@ pnpm dev:fetcher
 wrangler d1 migrations apply news-aggregator --remote
 ```
 
-### 3. 部署
+### 3. 配置 DeepL API key
+
+```bash
+# 在 apps/fetcher 目录下执行
+wrangler secret put DEEPL_API_KEY
+```
+
+### 4. 部署
 
 ```bash
 # 部署抓取 Worker
@@ -86,7 +102,7 @@ pnpm deploy:web
 
 ## 默认资讯源建议
 
-在 `/admin` 页面添加以下 RSS 源：
+在 `/fish` 后台页面添加以下 RSS 源：
 
 | 名称 | RSS URL |
 |------|---------|
@@ -99,6 +115,6 @@ pnpm deploy:web
 
 ## 注意事项
 
-- 管理界面默认无认证，适合个人使用。如需保护，可在 Cloudflare 控制台为 Pages 域名启用 **Cloudflare Access**。
-- Workers AI 免费额度为每日 10,000 neurons；若翻译调用频繁，可关注用量或关闭部分英文源的自动翻译。
-- Queue 消费失败会自动重试 3 次，可在 Workers 日志中查看错误详情。
+- 管理后台入口为 `/fish`（首页页头 "TouchFish News" 文字连点 3 次也可进入），默认无认证，适合个人使用。如需保护，可在 Cloudflare 控制台为 Pages 域名启用 **Cloudflare Access**。
+- DeepL 免费版每月 50 万字符额度；若翻译调用频繁，可关注用量或关闭部分英文源的自动翻译。翻译失败时返回 `null`，前端自动回退显示原标题。
+- Queue 消费失败会自动重试 3 次（配额类错误直接 ack 不重试），可在 Workers 日志中查看错误详情。
