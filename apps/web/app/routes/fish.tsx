@@ -170,7 +170,7 @@ function SortableRow({
       <Table.Td>
         <Text size="xs" c="dimmed">
           {source.lastFetchedAt
-            ? `${formatRelativeTime(source.lastFetchedAt)}，更新 ${source.lastFetchCount} 条`
+            ? `${formatRelativeTime(source.lastFetchedAt)}更新了 ${source.lastFetchCount} 条`
             : "从未"}
         </Text>
       </Table.Td>
