@@ -392,17 +392,20 @@ function AdminPage() {
           .catch(() => ({ error: "Request failed" }))) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
-      return res.json() as Promise<{ success: boolean; articles: number }>;
+      return res.json() as Promise<{ success: boolean; queued: boolean }>;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sources"] });
       queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
       notifications.show({
-        title: "抓取完成",
-        message:
-          data.articles > 0 ? `成功获取 ${data.articles} 篇文章` : "没有新文章",
-        color: data.articles > 0 ? "green" : "blue",
+        title: "已加入更新队列",
+        message: "后台正在抓取并翻译，稍后自动刷新",
+        color: "blue",
       });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
+        queryClient.invalidateQueries({ queryKey: ["sources"] });
+      }, 8000);
     },
     onError: (err: Error) => {
       notifications.show({ title: "失败", message: err.message, color: "red" });
@@ -415,19 +418,20 @@ function AdminPage() {
         method: "POST",
       });
       if (!res.ok) throw new Error("一键刷新失败");
-      return res.json() as Promise<{ success: boolean; totalFetched: number }>;
+      return res.json() as Promise<{ success: boolean; queued: number }>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["sources"] });
       queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
       notifications.show({
-        title: "刷新完成",
-        message:
-          data.totalFetched > 0
-            ? `获取到 ${data.totalFetched} 篇新文章`
-            : "没有新文章",
-        color: data.totalFetched > 0 ? "green" : "blue",
+        title: "已加入更新队列",
+        message: `已排队 ${data.queued} 个源，后台正在抓取并翻译`,
+        color: "blue",
       });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
+        queryClient.invalidateQueries({ queryKey: ["sources"] });
+      }, 10000);
     },
     onError: (err: Error) => {
       notifications.show({ title: "失败", message: err.message, color: "red" });

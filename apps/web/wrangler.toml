@@ -13,6 +13,3 @@ preview_database_id = "c4d7b287-e336-432c-bd93-930a03af7be9"
 binding = "NEWS_QUEUE"
 queue = "news-fetch-queue"
 
-[ai]
-binding = "AI"
-
