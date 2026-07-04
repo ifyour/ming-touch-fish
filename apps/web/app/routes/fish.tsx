@@ -84,13 +84,21 @@ function usePollingAfterFetch(
   );
 
   useEffect(() => {
-    if (!polling || !sources) return;
+    if (!polling) return;
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 30;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       attempts++;
-      for (const s of sources) {
+      // 主动 refetch 获取最新数据
+      const freshSources = await queryClient.refetchQueries({
+        queryKey: ["sources"],
+        type: "active",
+      }).then(() => queryClient.getQueryData<SourceWithLastFetchCount[]>(["sources"]));
+      
+      if (!freshSources) return;
+      
+      for (const s of freshSources) {
         const prev = snapshotRef.current.get(s.id);
         if (prev !== undefined && toKey(s.lastFetchedAt) !== prev) {
           snapshotRef.current.delete(s.id);
@@ -102,12 +110,11 @@ function usePollingAfterFetch(
         clearInterval(interval);
         setPolling(false);
         queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
-        queryClient.invalidateQueries({ queryKey: ["sources"] });
       }
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [polling, sources, queryClient, onSourceComplete]);
+  }, [polling, queryClient, onSourceComplete]);
 
   return { startPolling };
 }
