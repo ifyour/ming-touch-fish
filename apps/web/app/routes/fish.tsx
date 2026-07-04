@@ -48,7 +48,8 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Source, SourceInput } from "@repo/shared";
+import type { Source, SourceInput, SourceWithLastFetchCount } from "@repo/shared";
+import { formatRelativeTime } from "@repo/shared";
 import { SourceForm } from "../components/SourceForm.js";
 import { getApiUrl } from "../utils/apiUrl.js";
 import { z } from "zod";
@@ -73,14 +74,14 @@ export const Route = createFileRoute("/fish")({
   },
 });
 
-async function fetchSources(): Promise<Source[]> {
+async function fetchSources(): Promise<SourceWithLastFetchCount[]> {
   const response = await fetch(await getApiUrl("/api/sources"));
   if (!response.ok) throw new Error("Failed to load sources");
   return response.json();
 }
 
 interface SortableRowProps {
-  source: Source;
+  source: SourceWithLastFetchCount;
   isFetching: boolean;
   isSelected: boolean;
   onToggleSelect: () => void;
@@ -167,9 +168,9 @@ function SortableRow({
         />
       </Table.Td>
       <Table.Td>
-        <Text size="sm" c="dimmed">
+        <Text size="xs" c="dimmed">
           {source.lastFetchedAt
-            ? new Date(source.lastFetchedAt).toLocaleString("zh-CN")
+            ? `${formatRelativeTime(source.lastFetchedAt)}，更新 ${source.lastFetchCount} 条`
             : "从未"}
         </Text>
       </Table.Td>
@@ -236,11 +237,11 @@ function AdminPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const [sortedSources, setSortedSources] = useState<Source[]>(
+  const [sortedSources, setSortedSources] = useState<SourceWithLastFetchCount[]>(
     () => sources ?? [],
   );
 
-  const prevSources = useRef<Source[] | undefined>(undefined);
+  const prevSources = useRef<SourceWithLastFetchCount[] | undefined>(undefined);
   useEffect(() => {
     if (sources && sources !== prevSources.current) {
       setSortedSources(sources);
@@ -570,7 +571,7 @@ function AdminPage() {
         style={{ minHeight: "calc(100vh - 80px)" }}
       >
         <Stack
-          w={220}
+          w={160}
           gap={0}
           py="md"
           style={{

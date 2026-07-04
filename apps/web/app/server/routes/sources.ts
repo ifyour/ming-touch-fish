@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { createDb, schema } from '@repo/db';
@@ -93,7 +93,23 @@ app.post('/detect', zValidator('json', z.object({ url: z.string() })), async (c)
 app.get('/', async (c) => {
   const db = createDb(c.env.DB);
   const sources = await db
-    .select()
+    .select({
+      id: schema.sources.id,
+      name: schema.sources.name,
+      url: schema.sources.url,
+      priority: schema.sources.priority,
+      fetchFrequency: schema.sources.fetchFrequency,
+      isActive: schema.sources.isActive,
+      lastFetchedAt: schema.sources.lastFetchedAt,
+      createdAt: schema.sources.createdAt,
+      updatedAt: schema.sources.updatedAt,
+      lastFetchCount: sql<number>`(
+        SELECT COUNT(*) FROM articles
+        WHERE articles.source_id = sources.id
+          AND articles.fetched_at >= sources.last_fetched_at - 300
+          AND articles.fetched_at <= sources.last_fetched_at + 1
+      )`.as('last_fetch_count'),
+    })
     .from(schema.sources)
     .orderBy(desc(schema.sources.priority), desc(schema.sources.createdAt));
 

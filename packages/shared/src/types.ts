@@ -2,6 +2,10 @@ import type { Source, Article } from '@repo/db';
 
 export type { Source, Article };
 
+export interface SourceWithLastFetchCount extends Source {
+  lastFetchCount: number;
+}
+
 export interface QueueMessage {
   sourceId: number;
 }
