@@ -399,7 +399,7 @@ function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
       notifications.show({
         title: "已加入更新队列",
-        message: "后台正在抓取并翻译，稍后自动刷新",
+        message: "后台正在抓取，英文标题将自动翻译，稍后自动刷新",
         color: "blue",
       });
       setTimeout(() => {
@@ -425,7 +425,7 @@ function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
       notifications.show({
         title: "已加入更新队列",
-        message: `已排队 ${data.queued} 个源，后台正在抓取并翻译`,
+        message: `已排队 ${data.queued} 个源，后台正在抓取，英文标题将自动翻译`,
         color: "blue",
       });
       setTimeout(() => {
