@@ -21,6 +21,7 @@ import {
   ScrollArea,
   ActionIcon,
   Tooltip,
+  Checkbox,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -81,6 +82,8 @@ async function fetchSources(): Promise<Source[]> {
 interface SortableRowProps {
   source: Source;
   isFetching: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
   onFetch: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -90,6 +93,8 @@ interface SortableRowProps {
 function SortableRow({
   source,
   isFetching,
+  isSelected,
+  onToggleSelect,
   onFetch,
   onEdit,
   onDelete,
@@ -112,7 +117,14 @@ function SortableRow({
   };
 
   return (
-    <Table.Tr ref={setNodeRef} style={style}>
+    <Table.Tr ref={setNodeRef} style={style} bg={isSelected ? "var(--mantine-color-blue-0)" : undefined}>
+      <Table.Td w={36}>
+        <Checkbox
+          aria-label={`选择 ${source.name}`}
+          checked={isSelected}
+          onChange={onToggleSelect}
+        />
+      </Table.Td>
       <Table.Td>
         <ActionIcon
           variant="subtle"
@@ -124,6 +136,11 @@ function SortableRow({
         >
           <IconGripVertical size={14} />
         </ActionIcon>
+      </Table.Td>
+      <Table.Td>
+        <Text size="xs" c="dimmed" ff="monospace">
+          {source.id}
+        </Text>
       </Table.Td>
       <Table.Td>{source.name}</Table.Td>
       <Table.Td>
@@ -210,6 +227,8 @@ function AdminPage() {
   const [deletingSource, setDeletingSource] = useState<Source | undefined>(
     undefined,
   );
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [deletingBatch, setDeletingBatch] = useState(false);
 
   const { data: sources, isLoading } = useQuery({
     queryKey: ["sources"],
@@ -356,6 +375,60 @@ function AdminPage() {
     },
   });
 
+  const batchToggleActiveMutation = useMutation({
+    mutationFn: async ({ ids, isActive }: { ids: number[]; isActive: boolean }) => {
+      const apiUrl = await getApiUrl("/api/sources/");
+      await Promise.all(
+        ids.map(async (id) => {
+          const res = await fetch(`${apiUrl}${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive }),
+          });
+          if (!res.ok) throw new Error("Failed to update status");
+        }),
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      notifications.show({
+        title: "成功",
+        message: "已批量更新启用状态",
+        color: "green",
+      });
+      setSelectedIds(new Set());
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: "失败", message: err.message, color: "red" });
+    },
+  });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const apiUrl = await getApiUrl("/api/sources/");
+      await Promise.all(
+        ids.map(async (id) => {
+          const res = await fetch(`${apiUrl}${id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("Failed to delete source");
+        }),
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
+      notifications.show({
+        title: "成功",
+        message: "已批量删除选中资讯源",
+        color: "green",
+      });
+      setSelectedIds(new Set());
+      setDeletingBatch(false);
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: "失败", message: err.message, color: "red" });
+    },
+  });
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
@@ -380,6 +453,30 @@ function AdminPage() {
     },
     [sortedSources, updatePriorityBatch],
   );
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const allSelected =
+    sortedSources.length > 0 && sortedSources.every((s) => selectedIds.has(s.id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+  const selectedCount = selectedIds.size;
+
+  const toggleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedSources.map((s) => s.id)));
+    }
+  }, [allSelected, sortedSources]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   const fetchMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -501,23 +598,73 @@ function AdminPage() {
           <Stack gap="md" p="md">
             {tab === "sources" && (
               <>
-                <Group justify="flex-end">
-                  <Button
-                    leftSection={<IconRefresh size={16} />}
-                    size="xs"
-                    variant="default"
-                    loading={fetchAllMutation.isPending}
-                    onClick={() => fetchAllMutation.mutate()}
-                  >
-                    更新全部
-                  </Button>
-                  <Button
-                    leftSection={<IconPlus size={16} />}
-                    onClick={openCreate}
-                    size="xs"
-                  >
-                    添加资讯源
-                  </Button>
+                <Group justify="space-between" align="center">
+                  {selectedCount > 0 ? (
+                    <Group gap="sm">
+                      <Text size="sm" fw={500}>
+                        已选 {selectedCount} 项
+                      </Text>
+                      <Button
+                        size="xs"
+                        variant="default"
+                        loading={batchToggleActiveMutation.isPending}
+                        onClick={() =>
+                          batchToggleActiveMutation.mutate({
+                            ids: Array.from(selectedIds),
+                            isActive: true,
+                          })
+                        }
+                      >
+                        批量启用
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="default"
+                        loading={batchToggleActiveMutation.isPending}
+                        onClick={() =>
+                          batchToggleActiveMutation.mutate({
+                            ids: Array.from(selectedIds),
+                            isActive: false,
+                          })
+                        }
+                      >
+                        批量停用
+                      </Button>
+                      <Button
+                        size="xs"
+                        color="red"
+                        variant="light"
+                        onClick={() => setDeletingBatch(true)}
+                      >
+                        批量删除
+                      </Button>
+                      <Button size="xs" variant="subtle" onClick={clearSelection}>
+                        取消选择
+                      </Button>
+                    </Group>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      资讯源列表
+                    </Text>
+                  )}
+                  <Group gap="sm">
+                    <Button
+                      leftSection={<IconRefresh size={16} />}
+                      size="xs"
+                      variant="default"
+                      loading={fetchAllMutation.isPending}
+                      onClick={() => fetchAllMutation.mutate()}
+                    >
+                      更新全部
+                    </Button>
+                    <Button
+                      leftSection={<IconPlus size={16} />}
+                      onClick={openCreate}
+                      size="xs"
+                    >
+                      添加资讯源
+                    </Button>
+                  </Group>
                 </Group>
 
                 <LoadingOverlay visible={isLoading} />
@@ -531,7 +678,16 @@ function AdminPage() {
                     <Table highlightOnHover>
                       <Table.Thead>
                         <Table.Tr>
+                          <Table.Th w={36}>
+                            <Checkbox
+                              aria-label="全选"
+                              checked={allSelected}
+                              indeterminate={someSelected}
+                              onChange={toggleSelectAll}
+                            />
+                          </Table.Th>
                           <Table.Th w={40}></Table.Th>
+                          <Table.Th w={60}>ID</Table.Th>
                           <Table.Th>名称</Table.Th>
                           <Table.Th>RSS</Table.Th>
                           <Table.Th>频率</Table.Th>
@@ -550,6 +706,8 @@ function AdminPage() {
                               key={source.id}
                               source={source}
                               isFetching={isFetchingSource(source.id)}
+                              isSelected={selectedIds.has(source.id)}
+                              onToggleSelect={() => toggleSelect(source.id)}
                               onFetch={() => fetchMutation.mutate(source.id)}
                               onEdit={() => openEdit(source)}
                               onDelete={() => setDeletingSource(source)}
@@ -605,6 +763,35 @@ function AdminPage() {
                           deleteMutation.mutate(deletingSource.id);
                         setDeletingSource(undefined);
                       }}
+                    >
+                      删除
+                    </Button>
+                  </Group>
+                </Modal>
+
+                <Modal
+                  opened={deletingBatch}
+                  onClose={() => setDeletingBatch(false)}
+                  title="确认批量删除"
+                  size="sm"
+                  centered
+                >
+                  <Text size="sm" mb="lg">
+                    确定要删除选中的 {selectedCount} 个资讯源吗？相关文章将一并删除，该操作不可撤销。
+                  </Text>
+                  <Group justify="flex-end" gap="sm">
+                    <Button
+                      variant="default"
+                      onClick={() => setDeletingBatch(false)}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      color="red"
+                      loading={batchDeleteMutation.isPending}
+                      onClick={() =>
+                        batchDeleteMutation.mutate(Array.from(selectedIds))
+                      }
                     >
                       删除
                     </Button>
