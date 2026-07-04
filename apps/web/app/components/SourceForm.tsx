@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Group, NumberInput, Select, Stack, Switch, TextInput } from '@mantine/core';
+import { Button, Group, Select, Stack, Switch, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useDebouncedValue } from '@mantine/hooks';
 import type { Source, SourceInput } from '@repo/shared';
@@ -18,7 +18,6 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
     initialValues: {
       name: source?.name ?? '',
       url: source?.url ?? '',
-      priority: source?.priority ?? 0,
       fetchFrequency: source?.fetchFrequency ?? 'daily',
       isActive: source?.isActive ?? true,
     },
@@ -91,7 +90,6 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
           inputWrapperOrder={['label', 'input', 'description', 'error']}
         />
         <TextInput label="名称" placeholder="例如：Hacker News" {...form.getInputProps('name')} />
-        <NumberInput label="优先级" {...form.getInputProps('priority')} />
         <Select
           label="抓取频率"
           data={[

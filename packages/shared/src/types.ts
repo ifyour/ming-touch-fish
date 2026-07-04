@@ -13,7 +13,6 @@ export interface QueueMessage {
 export interface SourceInput {
   name: string;
   url: string;
-  priority?: number;
   fetchFrequency?: 'hourly' | 'twice_daily' | 'daily';
   isActive?: boolean;
 }

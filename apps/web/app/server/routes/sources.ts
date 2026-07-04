@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, asc, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { createDb, schema } from '@repo/db';
@@ -32,7 +32,6 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 const createSourceSchema = z.object({
   name: z.string().min(1).max(200),
   url: z.string().url(),
-  priority: z.coerce.number().int().default(0),
   fetchFrequency: z.enum(['hourly', 'twice_daily', 'daily']).default('daily'),
   isActive: z.coerce.boolean().default(true),
 });
@@ -111,7 +110,11 @@ app.get('/', async (c) => {
       )`.as('last_fetch_count'),
     })
     .from(schema.sources)
-    .orderBy(desc(schema.sources.priority), desc(schema.sources.createdAt));
+    .orderBy(
+      desc(schema.sources.isActive),
+      desc(schema.sources.priority),
+      asc(schema.sources.createdAt)
+    );
 
   c.header('Cache-Control', 'no-cache, no-store');
   return c.json(sources);
@@ -126,7 +129,6 @@ app.post('/', zValidator('json', createSourceSchema), async (c) => {
     .values({
       name: data.name,
       url: data.url,
-      priority: data.priority ?? 0,
       fetchFrequency: data.fetchFrequency ?? 'daily',
       isActive: data.isActive ?? true,
     })

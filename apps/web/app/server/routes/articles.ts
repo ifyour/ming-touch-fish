@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { createDb, schema } from '@repo/db';
 import type { Bindings } from '../types';
@@ -41,7 +41,11 @@ app.get('/grouped', async (c) => {
       eq(schema.articles.sourceId, schema.sources.id)
     )
     .where(eq(schema.sources.isActive, true))
-    .orderBy(desc(schema.sources.priority), desc(schema.sources.createdAt), desc(schema.articles.publishedAt));
+    .orderBy(
+      desc(schema.sources.priority),
+      asc(schema.sources.createdAt),
+      desc(schema.articles.publishedAt)
+    );
 
   const grouped = new Map<number, { source: typeof schema.sources.$inferSelect; articles: typeof schema.articles.$inferSelect[] }>();
 
