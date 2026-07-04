@@ -67,10 +67,12 @@ function usePollingAfterFetch(
 
   const startPolling = useCallback(
     (sourceIds?: number[]) => {
-      if (!sources) return;
+      // Fetch fresh data from query cache to avoid stale closure
+      const currentSources = queryClient.getQueryData<SourceWithLastFetchCount[]>(["sources"]);
+      if (!currentSources) return;
       const snapshot = new Map<number, string>();
-      const targets = sourceIds ?? sources.map((s) => s.id);
-      for (const s of sources) {
+      const targets = sourceIds ?? currentSources.map((s) => s.id);
+      for (const s of currentSources) {
         if (targets.includes(s.id)) {
           snapshot.set(s.id, toKey(s.lastFetchedAt));
         }
@@ -78,7 +80,7 @@ function usePollingAfterFetch(
       snapshotRef.current = snapshot;
       setPolling(true);
     },
-    [sources],
+    [queryClient],
   );
 
   useEffect(() => {
