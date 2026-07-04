@@ -590,11 +590,6 @@ function AdminPage() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["sources"] });
-      notifications.show({
-        title: "已加入更新队列",
-        message: "后台正在抓取，稍后自动刷新",
-        color: "blue",
-      });
       startPolling([variables]);
     },
     onError: (err: Error, id) => {
