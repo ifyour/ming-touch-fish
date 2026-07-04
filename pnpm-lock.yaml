@@ -80,6 +80,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/fetcher':
+        specifier: workspace:*
+        version: link:../fetcher
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared

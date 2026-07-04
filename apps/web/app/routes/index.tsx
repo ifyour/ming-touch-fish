@@ -31,6 +31,7 @@ function HomePage() {
     queryFn: fetchGroupedArticles,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
 
   if (isLoading) {

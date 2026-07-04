@@ -21,6 +21,7 @@
     "@mantine/hooks": "^7.17.0",
     "@mantine/notifications": "^7.17.0",
     "@repo/db": "workspace:*",
+    "@repo/fetcher": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/telemetry": "workspace:*",
     "@tabler/icons-react": "^3.31.0",

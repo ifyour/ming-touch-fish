@@ -95,7 +95,9 @@ fetcher.queue(batch)  每批最多 10 条，最多重试 3 次
 
 ### 手动触发抓取
 
-web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` **不直接抓取**，而是向 `NEWS_QUEUE` 投递消息，由 fetcher 异步消费。这是为了规避 Pages 函数同步执行多 UA 回退导致的 30–40 秒 pending。前端 [fish.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/fish.tsx) 在触发后 8–10 秒自动 invalidate 文章列表。
+web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在**生产环境**向 `NEWS_QUEUE` 投递消息，由 fetcher 异步消费。这是为了规避 Pages 函数同步执行多 UA 回退导致的 30–40 秒 pending。
+
+**本地开发例外**：由于本地开发时 web worker 和 fetcher 是两个独立进程，Queue 不互通（消息发了但没人收），因此当 web 的 `.dev.vars` 中设置了 `DIRECT_FETCH=true` 时，API 会跳过 Queue，直接调用 `fetchAndStore()` 同步抓取。前端 [fish.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/fish.tsx) 通过轮询检测 `lastFetchedAt` 变化来判断抓取完成。
 
 ### 管理后台入口
 
@@ -118,7 +120,8 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` **�
 
 - **翻译服务用 DeepL API v2**，通过 `fetch()` 调用，**不要**改回 Cloudflare Workers AI（`env.AI.run()`）。历史上的 AI 方案有推理 token 问题、超时、格式不匹配，已废弃。
 - DeepL API key **必须**作为环境变量 `DEEPL_API_KEY` 提供：
-  - 本地：写在 `apps/fetcher/.dev.vars`（已被 gitignore；`.dev.vars.example` 是模板）
+  - 本地（fetcher）：写在 `apps/fetcher/.dev.vars`（已被 gitignore；`.dev.vars.example` 是模板）
+  - 本地（web，仅 `DIRECT_FETCH=true` 时需要）：写在 `apps/web/.dev.vars`
   - 生产：`wrangler secret put DEEPL_API_KEY`（在 `apps/fetcher` 目录下执行）
   - **绝不**把 key 写进代码或提交到版本控制。
 - DeepL 端点根据 key 后缀自动选择：`:fx` 后缀走 `api-free.deepl.com`，否则走 `api.deepl.com`。
@@ -128,7 +131,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` **�
 
 ### 抓取与队列
 
-- **web API 的 fetch 端点必须走队列异步**，不要在 web worker 里同步抓取。同步抓取会因为多 UA 回退造成 30–40s pending。
+- **生产环境的 web API fetch 端点必须走队列异步**，不要在 web worker 里同步抓取。同步抓取会因为多 UA 回退造成 30–40s pending。本地开发例外：`DIRECT_FETCH=true` 时直接调用 `fetchAndStore()`。
 - fetcher 的 `queue()` 处理失败时：**配额类错误 `message.ack()`（重试无意义）**，其他错误 `message.retry()`。`isCloudflareQuotaError()` 在 [packages/shared/src/utils.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/packages/shared/src/utils.ts) 已实现，不要在 catch 里无脑 retry。
 - URL 去重前必须先过 `normalizeUrl()` 剥离 utm_* / fbclid / gclid / ref / source 等追踪参数，再去查 `articles_url_idx`。
 - V2EX 源（URL 含 `v2ex.com/index.xml`）走专用 JSON API 分支，不走 RSS 解析。
@@ -155,8 +158,9 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` **�
 3. 创建 Queue：`wrangler queues create news-fetch-queue`
 4. 应用迁移：`wrangler d1 migrations apply news-aggregator --local`
 5. 复制 `apps/fetcher/.dev.vars.example` 为 `apps/fetcher/.dev.vars`，填入 DeepL API key。
-6. 两个终端分别跑 `pnpm dev:web` 和 `pnpm dev:fetcher`。
-7. 访问 <http://localhost:3000>，首页右上 "TouchFish News" 文字连点 3 次进入 `/fish`。
+6. 创建 `apps/web/.dev.vars`，设置 `DIRECT_FETCH=true` 和 `DEEPL_API_KEY`（与 fetcher 相同）。本地开发时 web 直接调用 fetcher 的 `fetchAndStore()` 同步抓取，不走 Queue。
+7. 两个终端分别跑 `pnpm dev:web` 和 `pnpm dev:fetcher`。
+8. 访问 <http://localhost:3000>，首页右上 "TouchFish News" 文字连点 3 次进入 `/fish`。
 
 web 端本地通过 `wrangler getBindingsProxy()` 拿 D1/Queue 绑定（[apps/web/app/routes/api/$.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/api/$.ts)）；如果失败回退到 `createMockEnv()`（空实现，仅用于类型检查不报错）。
 
@@ -179,7 +183,8 @@ curl "http://localhost:8787/__scheduled?cron=0+*+*+*+*"
 
 ```bash
 curl -X POST http://localhost:3000/api/sources/<id>/fetch
-# 期望返回 {"success":true,"queued":true}，几秒后 fetcher 日志出现抓取/翻译记录
+# 本地开发（DIRECT_FETCH=true）返回 {"success":true,"fetched":true}，同步完成
+# 生产环境返回 {"success":true,"queued":true}，异步由 fetcher 消费
 ```
 
 ## 常见任务指引
@@ -201,6 +206,7 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 
 - 首页：[apps/web/app/routes/index.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/index.tsx) + `components/SourceSection.tsx`、`CompactArticleItem.tsx`
 - 后台：[apps/web/app/routes/fish.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/fish.tsx) + `SourceForm.tsx`
+- 后台通过 `usePollingAfterFetch` hook 轮询检测 `lastFetchedAt` 变化，实现每个源独立的抓取状态追踪（转动/完成）
 - 主题在 [apps/web/app/routes/__root.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/__root.tsx) 的 `createTheme({ primaryColor: 'blue', defaultRadius: 'md' })`
 - Mantine CSS 通过 `?inline` 在 SSR 内联，避免样式闪烁。
 - 修改路由后 `routeTree.gen.ts` 会自动重新生成，不要手动编辑。

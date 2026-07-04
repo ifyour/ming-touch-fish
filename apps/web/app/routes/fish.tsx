@@ -54,6 +54,62 @@ import { SourceForm } from "../components/SourceForm.js";
 import { getApiUrl } from "../utils/apiUrl.js";
 import { z } from "zod";
 
+function usePollingAfterFetch(
+  queryClient: ReturnType<typeof useQueryClient>,
+  sources: SourceWithLastFetchCount[] | undefined,
+  onSourceComplete: (id: number, newLastFetchedAt: Date) => void,
+) {
+  const [polling, setPolling] = useState(false);
+  const snapshotRef = useRef<Map<number, string>>(new Map());
+
+  const toKey = (v: Date | string | null | undefined) =>
+    v instanceof Date ? v.toISOString() : (v ?? "");
+
+  const startPolling = useCallback(
+    (sourceIds?: number[]) => {
+      if (!sources) return;
+      const snapshot = new Map<number, string>();
+      const targets = sourceIds ?? sources.map((s) => s.id);
+      for (const s of sources) {
+        if (targets.includes(s.id)) {
+          snapshot.set(s.id, toKey(s.lastFetchedAt));
+        }
+      }
+      snapshotRef.current = snapshot;
+      setPolling(true);
+    },
+    [sources],
+  );
+
+  useEffect(() => {
+    if (!polling || !sources) return;
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    const interval = setInterval(() => {
+      attempts++;
+      for (const s of sources) {
+        const prev = snapshotRef.current.get(s.id);
+        if (prev !== undefined && toKey(s.lastFetchedAt) !== prev) {
+          snapshotRef.current.delete(s.id);
+          const ts = s.lastFetchedAt;
+          onSourceComplete(s.id, ts instanceof Date ? ts : ts ? new Date(ts) : new Date());
+        }
+      }
+      if (snapshotRef.current.size === 0 || attempts >= maxAttempts) {
+        clearInterval(interval);
+        setPolling(false);
+        queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
+        queryClient.invalidateQueries({ queryKey: ["sources"] });
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [polling, sources, queryClient, onSourceComplete]);
+
+  return { startPolling };
+}
+
 const adminTabs = [
   { value: "sources", label: "资讯源管理", icon: IconRss },
 ] as const;
@@ -230,12 +286,28 @@ function AdminPage() {
   );
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [deletingBatch, setDeletingBatch] = useState(false);
+  const [fetchingIds, setFetchingIds] = useState<Set<number>>(new Set());
 
   const { data: sources, isLoading } = useQuery({
     queryKey: ["sources"],
     queryFn: fetchSources,
     staleTime: 5 * 60 * 1000,
   });
+
+  const removeFetchingId = useCallback((id: number, newLastFetchedAt: Date) => {
+    setFetchingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setSortedSources((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, lastFetchedAt: newLastFetchedAt } : s
+      )
+    );
+  }, []);
+
+  const { startPolling } = usePollingAfterFetch(queryClient, sources, removeFetchingId);
 
   const [sortedSources, setSortedSources] = useState<SourceWithLastFetchCount[]>(
     () => sources ?? [],
@@ -360,10 +432,15 @@ function AdminPage() {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
+      const body: { isActive: boolean; priority?: number } = { isActive };
+      if (isActive && sources) {
+        const minPriority = sources.reduce((min, s) => Math.min(min, s.priority), Infinity);
+        body.priority = minPriority - 1;
+      }
       const res = await fetch(await getApiUrl(`/api/sources/${id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed to toggle status");
       return res.json();
@@ -379,12 +456,19 @@ function AdminPage() {
   const batchToggleActiveMutation = useMutation({
     mutationFn: async ({ ids, isActive }: { ids: number[]; isActive: boolean }) => {
       const apiUrl = await getApiUrl("/api/sources/");
+      let nextPriority = sources
+        ? sources.reduce((min, s) => Math.min(min, s.priority), Infinity) - 1
+        : 0;
       await Promise.all(
         ids.map(async (id) => {
+          const body: { isActive: boolean; priority?: number } = { isActive };
+          if (isActive) {
+            body.priority = nextPriority--;
+          }
           const res = await fetch(`${apiUrl}${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ isActive }),
+            body: JSON.stringify(body),
           });
           if (!res.ok) throw new Error("Failed to update status");
         }),
@@ -492,20 +576,24 @@ function AdminPage() {
       }
       return res.json() as Promise<{ success: boolean; queued: boolean }>;
     },
-    onSuccess: () => {
+    onMutate: (id) => {
+      setFetchingIds((prev) => new Set(prev).add(id));
+    },
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["sources"] });
-      queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
       notifications.show({
         title: "已加入更新队列",
-        message: "后台正在抓取，英文标题将自动翻译，稍后自动刷新",
+        message: "后台正在抓取，稍后自动刷新",
         color: "blue",
       });
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
-        queryClient.invalidateQueries({ queryKey: ["sources"] });
-      }, 8000);
+      startPolling([variables]);
     },
-    onError: (err: Error) => {
+    onError: (err: Error, id) => {
+      setFetchingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       notifications.show({ title: "失败", message: err.message, color: "red" });
     },
   });
@@ -516,28 +604,31 @@ function AdminPage() {
         method: "POST",
       });
       if (!res.ok) throw new Error("一键刷新失败");
-      return res.json() as Promise<{ success: boolean; queued: number }>;
+      return res.json() as Promise<{ success: boolean; queued?: number; fetched?: number }>;
+    },
+    onMutate: () => {
+      if (sources) {
+        const activeIds = sources.filter((s) => s.isActive).map((s) => s.id);
+        setFetchingIds(new Set(activeIds));
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["sources"] });
-      queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
+      const count = data.queued ?? data.fetched ?? 0;
       notifications.show({
         title: "已加入更新队列",
-        message: `已排队 ${data.queued} 个源，后台正在抓取，英文标题将自动翻译`,
+        message: `已排队 ${count} 个源，后台正在抓取，稍后自动刷新`,
         color: "blue",
       });
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
-        queryClient.invalidateQueries({ queryKey: ["sources"] });
-      }, 10000);
+      startPolling();
     },
     onError: (err: Error) => {
+      setFetchingIds(new Set());
       notifications.show({ title: "失败", message: err.message, color: "red" });
     },
   });
 
-  const isFetchingSource = (id: number) =>
-    fetchMutation.isPending && fetchMutation.variables === id;
+  const isFetchingSource = (id: number) => fetchingIds.has(id);
 
   const openCreate = () => {
     setEditingSource(undefined);

@@ -8,6 +8,14 @@ import { logger } from '@repo/telemetry';
 import type { SourceInput } from '@repo/shared';
 import type { Bindings } from '../types';
 
+function createFetcherEnv(env: Bindings) {
+  return {
+    DB: env.DB,
+    DEEPL_API_KEY: env.DEEPL_API_KEY ?? '',
+    NEWS_QUEUE: env.NEWS_QUEUE,
+  };
+}
+
 function normalizeInputUrl(raw: string): string | null {
   let url = raw.trim();
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
@@ -176,6 +184,21 @@ app.post('/fetch-all', async (c) => {
   const db = createDb(c.env.DB);
   const sources = await db.select().from(schema.sources).where(eq(schema.sources.isActive, true));
 
+  if (c.env.DIRECT_FETCH) {
+    const { fetchAndStore } = await import('@repo/fetcher/fetcher');
+    const fetcherEnv = createFetcherEnv(c.env);
+    let fetched = 0;
+    for (const source of sources) {
+      try {
+        await fetchAndStore(fetcherEnv, source.id);
+        fetched++;
+      } catch (err) {
+        logger.error(`Direct fetch failed for source ${source.id}`, { service: 'web-api', sourceId: source.id, error: err });
+      }
+    }
+    return c.json({ success: true, fetched });
+  }
+
   let queued = 0;
   for (const source of sources) {
     try {
@@ -195,6 +218,17 @@ app.post('/:id/fetch', async (c) => {
 
   const source = await db.select().from(schema.sources).where(eq(schema.sources.id, id)).get();
   if (!source) return c.json({ error: 'Source not found' }, 404);
+
+  if (c.env.DIRECT_FETCH) {
+    try {
+      const { fetchAndStore } = await import('@repo/fetcher/fetcher');
+      await fetchAndStore(createFetcherEnv(c.env), id);
+      return c.json({ success: true, fetched: true });
+    } catch (err) {
+      logger.error(`Direct fetch failed for source ${id}`, { service: 'web-api', sourceId: id, error: err });
+      return c.json({ error: 'Failed to fetch source' }, 500);
+    }
+  }
 
   try {
     await c.env.NEWS_QUEUE.send({ sourceId: id });
