@@ -1,8 +1,7 @@
 import { Stack, Title, Text, Card, ActionIcon, Tooltip, Anchor, Center } from '@mantine/core';
-import type { ArticleGroupedBySource, Article } from '@repo/shared';
+import type { ArticleGroupedBySource } from '@repo/shared';
 import { CompactArticleItem } from './CompactArticleItem.js';
 import { IconCheck } from '@tabler/icons-react';
-import { getApiUrl } from '../utils/apiUrl.js';
 import { useState, useRef, useEffect } from 'react';
 
 interface SourceSectionProps {
@@ -26,14 +25,11 @@ function saveReadArticleIds(ids: Set<number>) {
 
 export function SourceSection({ group }: SourceSectionProps) {
   const { source, articles } = group;
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [extraArticles, setExtraArticles] = useState<Article[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [readArticleIds, setReadArticleIds] = useState<Set<number>>(new Set());
 
-  const allArticles = [...articles, ...extraArticles];
-  const hasMore = allArticles.length > INITIAL_COUNT;
-  const displayArticles = expanded ? allArticles : allArticles.slice(0, INITIAL_COUNT);
+  const hasMore = articles.length > INITIAL_COUNT;
+  const displayArticles = expanded ? articles : articles.slice(0, INITIAL_COUNT);
   const allRead = displayArticles.length > 0 && displayArticles.every((a) => readArticleIds.has(a.id));
   const cardRef = useRef<HTMLDivElement>(null);
   const [lockedCardHeight, setLockedCardHeight] = useState<number | null>(null);
@@ -55,27 +51,11 @@ export function SourceSection({ group }: SourceSectionProps) {
     setReadArticleIds(ids);
   };
 
-  const handleShowMore = async () => {
+  const handleShowMore = () => {
     if (cardRef.current) {
       setLockedCardHeight(cardRef.current.clientHeight);
     }
     setExpanded(true);
-    if (allArticles.length < 20 && !loadingMore) {
-      setLoadingMore(true);
-      try {
-        const res = await fetch(
-          await getApiUrl(`/api/articles?sourceId=${source.id}&offset=${allArticles.length}&limit=10`)
-        );
-        if (res.ok) {
-          const newArticles: Article[] = await res.json();
-          if (newArticles.length > 0) {
-            setExtraArticles((prev) => [...prev, ...newArticles]);
-          }
-        }
-      } finally {
-        setLoadingMore(false);
-      }
-    }
   };
 
   return (
@@ -90,7 +70,7 @@ export function SourceSection({ group }: SourceSectionProps) {
           </Tooltip>
         </div>
       </Card.Section>
-      {allArticles.length === 0 ? (
+      {articles.length === 0 ? (
         <Text c="dimmed" size="sm" py="sm" px="md">
           暂无最近资讯
         </Text>
@@ -99,9 +79,6 @@ export function SourceSection({ group }: SourceSectionProps) {
           {displayArticles.map((article) => (
             <CompactArticleItem key={article.id} article={article} read={readArticleIds.has(article.id)} />
           ))}
-          {loadingMore && (
-            <Text c="dimmed" size="xs" ta="center" py="sm">加载中...</Text>
-          )}
         </Stack>
       )}
       {hasMore && !expanded && (
