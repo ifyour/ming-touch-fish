@@ -6,6 +6,7 @@ import { logger } from '@repo/telemetry';
 import type { Env } from './types.js';
 import { articleExists } from './dedup.js';
 import { translateTitles } from './translator.js';
+import { fetchV2exHotTopics } from './v2ex-adapter.js';
 
 export async function getSourcesToFetch(db: D1Database) {
   const drizzle = createDb(db);
@@ -50,6 +51,10 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
           author: (t['member'] as Record<string, unknown>)?.['username'] as string | undefined,
         })),
       };
+    }
+
+    if (url.includes('v2ex.com/#hot-topics')) {
+      return await fetchV2exHotTopics(env);
     }
 
     const uas = [UA, 'Mozilla/5.0 (compatible; Feedfetcher-Google; +http://www.google.com/feedfetcher.html)'];

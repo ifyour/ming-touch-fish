@@ -12,6 +12,7 @@ function createFetcherEnv(env: Bindings) {
   return {
     DB: env.DB,
     DEEPL_API_KEY: env.DEEPL_API_KEY ?? '',
+    FIRECRAWL_API_KEY: env.FIRECRAWL_API_KEY ?? '',
     NEWS_QUEUE: env.NEWS_QUEUE,
   };
 }

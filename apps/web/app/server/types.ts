@@ -5,6 +5,7 @@ export interface Bindings {
   NEWS_QUEUE: Queue<QueueMessage>;
   DIRECT_FETCH?: string;
   DEEPL_API_KEY?: string;
+  FIRECRAWL_API_KEY?: string;
 }
 
 export interface QueueMessage {

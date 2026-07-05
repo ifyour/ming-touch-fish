@@ -4,4 +4,5 @@ export interface Env {
   DB: D1Database;
   NEWS_QUEUE: Queue;
   DEEPL_API_KEY: string;
+  FIRECRAWL_API_KEY: string;
 }

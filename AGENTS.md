@@ -31,9 +31,11 @@ pnpm monorepo + Turborepo。
 │       ├── src/
 │       │   ├── index.ts          # 入口：scheduled() 入队、queue() 消费
 │       │   ├── fetcher.ts        # 抓取与入库主逻辑
+│       │   ├── firecrawl.ts      # Firecrawl Scrape API 客户端
+│       │   ├── v2ex-adapter.ts   # V2EX 热议适配器（Firecrawl 抓取首页 → 解析 #TopicsHot）
 │       │   ├── translator.ts     # DeepL API v2 调用
 │       │   ├── dedup.ts          # 按 URL 去重
-│       │   └── types.ts          # Env 类型（DB / NEWS_QUEUE / DEEPL_API_KEY）
+│       │   └── types.ts          # Env 类型（DB / NEWS_QUEUE / DEEPL_API_KEY / FIRECRAWL_API_KEY）
 │       └── wrangler.toml         # cron + queue consumer + D1 + migrations_dir
 ├── packages/
 │   ├── db/                       # Drizzle ORM schema + D1 client
@@ -86,7 +88,7 @@ pnpm monorepo + Turborepo。
         ↓
 fetcher.queue(batch)  每批最多 10 条，最多重试 3 次
    → fetchAndStore(env, sourceId):
-       1. fetchFeed(url): 支持 V2EX 特殊分支（走 JSON API）；其余用 feed-extractor，两个 UA 回退，再回退到裸 fetch + extractFromXml
+        1. fetchFeed(url): 支持 V2EX 两个分支——「最新」走 JSON API、「热议」走 Firecrawl Scrape 抓取首页 + 正则解析 #TopicsHot；其余用 feed-extractor，两个 UA 回退，再回退到裸 fetch + extractFromXml
        2. 按 publishedAt 排序，normalizeUrl 后通过 articles_url_idx 去重
        3. isLatinText(title) 筛出拉丁标题，批量调用 translateTitles() (DeepL, 批次上限 50)
        4. 逐条 INSERT；遇配额错误 ack（不重试），其他错误 retry()
@@ -135,6 +137,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 - fetcher 的 `queue()` 处理失败时：**配额类错误 `message.ack()`（重试无意义）**，其他错误 `message.retry()`。`isCloudflareQuotaError()` 在 [packages/shared/src/utils.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/packages/shared/src/utils.ts) 已实现，不要在 catch 里无脑 retry。
 - URL 去重前必须先过 `normalizeUrl()` 剥离 utm_* / fbclid / gclid / ref / source 等追踪参数，再去查 `articles_url_idx`。
 - V2EX 源（URL 含 `v2ex.com/index.xml`）走专用 JSON API 分支，不走 RSS 解析。
+- V2EX 热议源（URL 含 `v2ex.com/#hot-topics`）通过 Firecrawl Scrape API 抓取首页 HTML，正则提取 `#TopicsHot` 区块。URL 末尾带 `?` 查询参数强制 V2EX 返回 HTML 而非 RSS/XML（内容协商）。Firecrawl API key 通过环境变量 `FIRECRAWL_API_KEY` 提供，配额 402 错误由 `isCloudflareQuotaError()` 检测并 ack。
 
 ### 代码风格
 
@@ -157,8 +160,8 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 2. 创建本地 D1：`wrangler d1 create news-aggregator`，把 `database_id` 填进 `apps/web/wrangler.toml` 和 `apps/fetcher/wrangler.toml`（两个文件的 production 与 preview 段）。
 3. 创建 Queue：`wrangler queues create news-fetch-queue`
 4. 应用迁移：`wrangler d1 migrations apply news-aggregator --local`
-5. 复制 `apps/fetcher/.dev.vars.example` 为 `apps/fetcher/.dev.vars`，填入 DeepL API key。
-6. 创建 `apps/web/.dev.vars`，设置 `DIRECT_FETCH=true` 和 `DEEPL_API_KEY`（与 fetcher 相同）。本地开发时 web 直接调用 fetcher 的 `fetchAndStore()` 同步抓取，不走 Queue。
+5. 复制 `apps/fetcher/.dev.vars.example` 为 `apps/fetcher/.dev.vars`，填入 DeepL API key 和 Firecrawl API key。
+6. 创建 `apps/web/.dev.vars`，设置 `DIRECT_FETCH=true`、`DEEPL_API_KEY` 和 `FIRECRAWL_API_KEY`（与 fetcher 相同）。本地开发时 web 直接调用 fetcher 的 `fetchAndStore()` 同步抓取，不走 Queue。
 7. 两个终端分别跑 `pnpm dev:web` 和 `pnpm dev:fetcher`。
 8. 访问 <http://localhost:3000>，首页右上 "TouchFish News" 文字连点 3 次进入 `/fish`。
 
@@ -168,7 +171,7 @@ web 端本地通过 `wrangler getBindingsProxy()` 拿 D1/Queue 绑定（[apps/we
 
 1. 在 Cloudflare 控制台创建 D1 `news-aggregator` 与 Queue `news-fetch-queue`，ID 填进两个 `wrangler.toml`。
 2. `wrangler d1 migrations apply news-aggregator --remote`
-3. 在 `apps/fetcher` 目录：`wrangler secret put DEEPL_API_KEY`
+3. 在 `apps/fetcher` 目录：`wrangler secret put DEEPL_API_KEY`、`wrangler secret put FIRECRAWL_API_KEY`
 4. `pnpm deploy:fetcher` 然后 `pnpm deploy:web`
 
 ## 测试 fetcher（本地触发 cron）

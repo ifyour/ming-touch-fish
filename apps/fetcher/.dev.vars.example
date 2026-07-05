@@ -1,4 +1,7 @@
-# Copy this file to .dev.vars and fill in your DeepL API key.
+# Copy this file to .dev.vars and fill in your API keys.
 # .dev.vars is gitignored and used only for local development.
-# For production, run: wrangler secret put DEEPL_API_KEY
+# For production, run:
+#   wrangler secret put DEEPL_API_KEY
+#   wrangler secret put FIRECRAWL_API_KEY
 DEEPL_API_KEY=your-deepl-api-key-here
+FIRECRAWL_API_KEY=your-firecrawl-api-key-here

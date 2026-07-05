@@ -9,6 +9,7 @@
 - **数据库**：Cloudflare D1 + Drizzle ORM
 - **定时抓取**：Cloudflare Workers + Cron Triggers + Queues
 - **翻译**：DeepL API v2（英文标题 → 中文，批量上限 50 条/请求）
+- **反爬代理**：Firecrawl Scrape API（用于 V2EX 热议等无 RSS 且反爬强的源）
 
 ## 项目结构
 
@@ -49,10 +50,10 @@ wrangler d1 migrations apply news-aggregator --local
 wrangler queues create news-fetch-queue
 ```
 
-### 4. 配置 DeepL API key
+### 4. 配置 API keys
 
 ```bash
-# 复制模板到 apps/fetcher/.dev.vars，填入你的 DeepL API key
+# 复制模板到 apps/fetcher/.dev.vars，填入 DeepL API key 和 Firecrawl API key
 # .dev.vars 已被 gitignore，仅用于本地开发
 cp apps/fetcher/.dev.vars.example apps/fetcher/.dev.vars
 ```
@@ -83,11 +84,12 @@ pnpm dev:fetcher
 wrangler d1 migrations apply news-aggregator --remote
 ```
 
-### 3. 配置 DeepL API key
+### 3. 配置 API keys
 
 ```bash
 # 在 apps/fetcher 目录下执行
 wrangler secret put DEEPL_API_KEY
+wrangler secret put FIRECRAWL_API_KEY
 ```
 
 ### 4. 部署

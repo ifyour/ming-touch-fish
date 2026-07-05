@@ -85,6 +85,9 @@ export function isCloudflareQuotaError(err: unknown): string | null {
   if (/AI.*(?:quota|limit|rate|exceed)/i.test(msg) || /quota.*ai/i.test(msg)) {
     return 'Workers AI daily quota exceeded. Articles were saved without Chinese title translation. Translation will resume when quota resets.';
   }
+  if (code === 402 || /402|payment required/i.test(msg)) {
+    return 'Third-party API credits exhausted (402). Please top up your account or reduce fetch frequency.';
+  }
 
   return null;
 }
