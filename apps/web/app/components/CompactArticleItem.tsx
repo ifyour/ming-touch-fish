@@ -6,9 +6,10 @@ import { useRef, useState, useEffect } from 'react';
 interface CompactArticleItemProps {
   article: Article;
   read?: boolean;
+  onRead?: (articleId: number) => void;
 }
 
-export function CompactArticleItem({ article, read = false }: CompactArticleItemProps) {
+export function CompactArticleItem({ article, read = false, onRead }: CompactArticleItemProps) {
   const displayTitle = article.translatedTitle ?? article.title;
   const titleRef = useRef<HTMLAnchorElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);
@@ -48,6 +49,8 @@ export function CompactArticleItem({ article, read = false }: CompactArticleItem
           size="sm"
           lineClamp={1}
           className="article-link"
+          data-article-id={article.id}
+          onClick={() => onRead?.(article.id)}
           style={{
             flex: 1,
             minWidth: 0,

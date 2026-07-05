@@ -69,6 +69,11 @@ function RootComponent() {
         <style dangerouslySetInnerHTML={{ __html: mantineCoreCss }} />
         <style dangerouslySetInnerHTML={{ __html: mantineNotificationsCss }} />
         <style>{`.article-link{color:inherit;text-decoration:none}.article-link:visited{color:var(--mantine-color-gray-5)}`}</style>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var a=JSON.parse(localStorage.getItem('read_articles')||'[]');if(a.length){var s=document.createElement('style');s.id='r';for(var i=0;i<a.length;i+=50){s.textContent+='.article-link[data-article-id="'+a.slice(i,i+50).join('"],.article-link[data-article-id="')+'"]{color:var(--mantine-color-gray-5)}'}document.head.appendChild(s)}}catch(e){}`,
+          }}
+        />
       </head>
       <body>
         <div id="root">

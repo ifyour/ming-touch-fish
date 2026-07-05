@@ -9,24 +9,38 @@ interface SourceSectionProps {
 }
 
 const INITIAL_COUNT = 10;
-const COOKIE_EXPIRY_SECONDS = 60 * 60 * 24 * 365;
+const STORAGE_KEY = 'read_articles';
+const MAX_READ_IDS = 5000;
 
 function getReadArticleIds(): Set<number> {
-  if (typeof document === 'undefined') return new Set();
-  const match = document.cookie.match(/(?:^|; )read_articles=([^;]*)/);
-  if (!match) return new Set();
-  return new Set(match[1].split(',').map(Number).filter((n) => !isNaN(n)));
+  if (typeof localStorage === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return new Set();
+    const arr: number[] = JSON.parse(raw);
+    return new Set(arr.filter((n) => typeof n === 'number' && !isNaN(n)));
+  } catch {
+    return new Set();
+  }
 }
 
 function saveReadArticleIds(ids: Set<number>) {
-  const value = Array.from(ids).join(',');
-  document.cookie = `read_articles=${value}; max-age=${COOKIE_EXPIRY_SECONDS}; path=/`;
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const arr = Array.from(ids);
+    if (arr.length > MAX_READ_IDS) {
+      arr.splice(0, arr.length - MAX_READ_IDS);
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+  } catch {
+    // localStorage 不可用或已满，静默忽略
+  }
 }
 
 export function SourceSection({ group }: SourceSectionProps) {
   const { source, articles } = group;
   const [expanded, setExpanded] = useState(false);
-  const [readArticleIds, setReadArticleIds] = useState<Set<number>>(new Set());
+  const [readArticleIds, setReadArticleIds] = useState<Set<number>>(getReadArticleIds);
 
   const hasMore = articles.length > INITIAL_COUNT;
   const displayArticles = expanded ? articles : articles.slice(0, INITIAL_COUNT);
@@ -38,9 +52,13 @@ export function SourceSection({ group }: SourceSectionProps) {
     if (!expanded) setLockedCardHeight(null);
   }, [expanded]);
 
-  useEffect(() => {
-    setReadArticleIds(getReadArticleIds());
-  }, []);
+  const handleReadArticle = (articleId: number) => {
+    if (readArticleIds.has(articleId)) return;
+    const ids = new Set(readArticleIds);
+    ids.add(articleId);
+    saveReadArticleIds(ids);
+    setReadArticleIds(ids);
+  };
 
   const handleMarkRead = () => {
     const ids = new Set(readArticleIds);
@@ -77,7 +95,7 @@ export function SourceSection({ group }: SourceSectionProps) {
       ) : (
         <Stack gap={0} style={expanded ? { flex: 1, overflowY: 'auto', minHeight: 0 } : undefined}>
           {displayArticles.map((article) => (
-            <CompactArticleItem key={article.id} article={article} read={readArticleIds.has(article.id)} />
+            <CompactArticleItem key={article.id} article={article} read={readArticleIds.has(article.id)} onRead={handleReadArticle} />
           ))}
         </Stack>
       )}
