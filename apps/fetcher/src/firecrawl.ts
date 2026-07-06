@@ -23,6 +23,7 @@ export async function scrapePage(url: string, apiKey: string): Promise<Firecrawl
       url,
       formats: ['html', 'markdown'],
       onlyMainContent: false,
+      maxAge: 0,
     }),
     signal: AbortSignal.timeout(SCRAPE_TIMEOUT),
   });

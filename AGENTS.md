@@ -138,6 +138,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 - URL 去重前必须先过 `normalizeUrl()` 剥离 utm_* / fbclid / gclid / ref / source 等追踪参数，再去查 `articles_url_idx`。
 - V2EX 源（URL 含 `v2ex.com/index.xml`）走专用 JSON API 分支，不走 RSS 解析。
 - V2EX 热议源（URL 含 `v2ex.com/#hot-topics`）通过 Firecrawl Scrape API 抓取首页 HTML，正则提取 `#TopicsHot` 区块。URL 末尾带 `?` 查询参数强制 V2EX 返回 HTML 而非 RSS/XML（内容协商）。Firecrawl API key 通过环境变量 `FIRECRAWL_API_KEY` 提供，配额 402 错误由 `isCloudflareQuotaError()` 检测并 ack。
+- Firecrawl 请求默认带上 `maxAge: 0` 强制绕过缓存，确保每次抓取拿到最新页面。Firecrawl 默认缓存 2 天，不设此参数会导致 V2EX 热榜始终返回旧数据。
 
 ### 代码风格
 
