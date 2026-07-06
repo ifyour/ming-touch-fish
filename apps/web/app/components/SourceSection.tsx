@@ -53,15 +53,17 @@ export function SourceSection({ group }: SourceSectionProps) {
   }, [expanded]);
 
   const handleReadArticle = (articleId: number) => {
-    if (readArticleIds.has(articleId)) return;
-    const ids = new Set(readArticleIds);
+    const prev = getReadArticleIds();
+    if (prev.has(articleId)) return;
+    const ids = new Set(prev);
     ids.add(articleId);
     saveReadArticleIds(ids);
     setReadArticleIds(ids);
   };
 
   const handleMarkRead = () => {
-    const ids = new Set(readArticleIds);
+    const prev = getReadArticleIds();
+    const ids = new Set(prev);
     for (const article of displayArticles) {
       ids.add(article.id);
     }
