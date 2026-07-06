@@ -33,6 +33,7 @@ function parseV2exHotTopics(html: string): EntryList {
   // Firecrawl converts relative links to absolute; direct fetch keeps them relative
   const itemRegex = /item_hot_topic_title">\s*<a\s+href="(?:https?:\/\/v2ex\.com)?(\/t\/(\d+))"[^>]*>([\s\S]*?)<\/a>/g;
   let match: RegExpExecArray | null;
+  const now = Date.now();
 
   while ((match = itemRegex.exec(hotHtml)) !== null) {
     const title = decodeHtmlEntities(match[3].trim());
@@ -41,7 +42,7 @@ function parseV2exHotTopics(html: string): EntryList {
       id: `v2ex-hot-${match[2]}`,
       title,
       link: `https://v2ex.com${match[1]}`,
-      published: new Date().toISOString(),
+      published: new Date(now - entries.length * 1000).toISOString(),
     });
   }
 

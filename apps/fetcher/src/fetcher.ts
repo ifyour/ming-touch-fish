@@ -120,7 +120,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
       const url = normalizeUrl(entry.link ?? '');
       if (!url) continue;
 
-      const exists = await articleExists(env.DB, url);
+      const exists = await articleExists(env.DB, url, source.id);
       if (exists) continue;
 
       const extra = entry as Record<string, unknown>;

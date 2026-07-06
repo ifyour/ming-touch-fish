@@ -41,7 +41,7 @@ export const articles = sqliteTable(
     metadata: text('metadata', { mode: 'json' }),
   },
   (table) => ({
-    urlIdx: uniqueIndex('articles_url_idx').on(table.url),
+    sourceUrlIdx: uniqueIndex('articles_source_url_idx').on(table.sourceId, table.url),
     sourcePublishedIdx: index('articles_source_published_idx').on(table.sourceId, table.publishedAt),
   })
 );

@@ -89,7 +89,7 @@ pnpm monorepo + Turborepo。
 fetcher.queue(batch)  每批最多 10 条，最多重试 3 次
    → fetchAndStore(env, sourceId):
         1. fetchFeed(url): 支持 V2EX 两个分支——「最新」走 JSON API、「热议」走 Firecrawl Scrape 抓取首页 + 正则解析 #TopicsHot；其余用 feed-extractor，两个 UA 回退，再回退到裸 fetch + extractFromXml
-       2. 按 publishedAt 排序，normalizeUrl 后通过 articles_url_idx 去重
+       2. 按 publishedAt 排序，normalizeUrl 后通过 articles_source_url_idx 去重
        3. isLatinText(title) 筛出拉丁标题，批量调用 translateTitles() (DeepL, 批次上限 50)
        4. 逐条 INSERT；遇配额错误 ack（不重试），其他错误 retry()
        5. 更新 sources.last_fetched_at
@@ -112,7 +112,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 - `sources`：id / name / url / priority / fetch_frequency（hourly|twice_daily|daily）/ is_active / last_fetched_at / created_at / updated_at
 - `articles`：id / source_id (FK cascade) / title / translated_title（可空）/ url（**unique**）/ published_at / fetched_at / metadata(json)
 
-关键索引：`articles_url_idx`（unique，去重依据）、`articles_source_published_idx`、`sources_priority_idx`。
+关键索引：`articles_source_url_idx`（unique on source_id + url，跨源去重依据）、`articles_source_published_idx`、`sources_priority_idx`。
 
 ## 关键约定与硬性约束
 
@@ -135,7 +135,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 
 - **生产环境的 web API fetch 端点必须走队列异步**，不要在 web worker 里同步抓取。同步抓取会因为多 UA 回退造成 30–40s pending。本地开发例外：`DIRECT_FETCH=true` 时直接调用 `fetchAndStore()`。
 - fetcher 的 `queue()` 处理失败时：**配额类错误 `message.ack()`（重试无意义）**，其他错误 `message.retry()`。`isCloudflareQuotaError()` 在 [packages/shared/src/utils.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/packages/shared/src/utils.ts) 已实现，不要在 catch 里无脑 retry。
-- URL 去重前必须先过 `normalizeUrl()` 剥离 utm_* / fbclid / gclid / ref / source 等追踪参数，再去查 `articles_url_idx`。
+- URL 去重前必须先过 `normalizeUrl()` 剥离 utm_* / fbclid / gclid / ref / source 等追踪参数，再按 `(source_id, url)` 复合唯一索引去重，允许不同源共享同一条 URL。
 - V2EX 源（URL 含 `v2ex.com/index.xml`）走专用 JSON API 分支，不走 RSS 解析。
 - V2EX 热议源（URL 含 `v2ex.com/#hot-topics`）通过 Firecrawl Scrape API 抓取首页 HTML，正则提取 `#TopicsHot` 区块。URL 末尾带 `?` 查询参数强制 V2EX 返回 HTML 而非 RSS/XML（内容协商）。Firecrawl API key 通过环境变量 `FIRECRAWL_API_KEY` 提供，配额 402 错误由 `isCloudflareQuotaError()` 检测并 ack。
 - Firecrawl 请求默认带上 `maxAge: 0` 强制绕过缓存，确保每次抓取拿到最新页面。Firecrawl 默认缓存 2 天，不设此参数会导致 V2EX 热榜始终返回旧数据。
