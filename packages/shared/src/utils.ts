@@ -92,6 +92,51 @@ export function isCloudflareQuotaError(err: unknown): string | null {
   return null;
 }
 
+const STALE_GROUP_DAYS = 30;
+
+/**
+ * 判定一个资讯源是否应被收起：最新文章 publishedAt 距今超过 STALE_GROUP_DAYS 天（或无文章）即视为过期。
+ * 用于首页「加载更多」折叠区块。
+ */
+export function isStaleGroup(
+  group: { articles: { publishedAt: Date | string | null | undefined }[] }
+): boolean {
+  if (group.articles.length === 0) return true;
+  const newest = group.articles.reduce((max, a) => {
+    const d = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+    return Math.max(max, d);
+  }, 0);
+  if (!newest) return true;
+  return Date.now() - newest > STALE_GROUP_DAYS * 24 * 60 * 60 * 1000;
+}
+
+const FEED_PATH_RE = /\.(rss|xml|atom|json)$|\/(feed|rss|atom|feeds?)$/i;
+const FEED_SUBDOMAIN_RE = /^(feed|feeds|rss|atom)$/i;
+
+/**
+ * 从订阅源 URL 推导其站点主页链接：剥离 .rss/.xml/.atom 等 feed 路径与查询参数，
+ * 并去掉 feed 类的子域（如 feed.appinn.com → appinn.com），仅保留 origin + 目录路径（用于卡片标题跳转）。
+ */
+export function getSourceHomepage(feedUrl: string): string {
+  try {
+    const u = new URL(feedUrl);
+    let path = u.pathname;
+    if (FEED_PATH_RE.test(path)) {
+      const idx = path.lastIndexOf('/');
+      path = path.slice(0, idx);
+    }
+    let host = u.host;
+    const parts = host.split('.');
+    if (parts.length > 2 && FEED_SUBDOMAIN_RE.test(parts[0])) {
+      parts.shift();
+      host = parts.join('.');
+    }
+    return `${u.protocol}//${host}${path === '/' ? '' : path || '/'}`;
+  } catch {
+    return feedUrl;
+  }
+}
+
 /**
  * Format a date relative to now (e.g. "2 hours ago").
  */

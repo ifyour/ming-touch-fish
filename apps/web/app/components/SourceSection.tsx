@@ -1,5 +1,6 @@
 import { Stack, Title, Text, Card, ActionIcon, Tooltip, Anchor, Center } from '@mantine/core';
 import type { ArticleGroupedBySource } from '@repo/shared';
+import { getSourceHomepage } from '@repo/shared';
 import { CompactArticleItem } from './CompactArticleItem.js';
 import { IconCheck } from '@tabler/icons-react';
 import { useState, useRef, useEffect } from 'react';
@@ -82,7 +83,11 @@ export function SourceSection({ group }: SourceSectionProps) {
     <Card ref={cardRef} withBorder radius="md" padding={0} style={lockedCardHeight ? { height: lockedCardHeight, display: 'flex', flexDirection: 'column' } : undefined} onMouseLeave={() => expanded && setExpanded(false)}>
       <Card.Section withBorder inheritPadding py="sm" px="md">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Title order={5}>{source.name}</Title>
+          <Title order={5}>
+            <Anchor href={getSourceHomepage(source.url)} target="_blank" rel="noopener noreferrer" underline="never" c="inherit">
+              {source.name}
+            </Anchor>
+          </Title>
           <Tooltip label="标记已读" position="top" withArrow>
             <ActionIcon variant="subtle" color={allRead ? 'teal' : 'gray'} size="sm" onClick={handleMarkRead}>
               <IconCheck size={14} />

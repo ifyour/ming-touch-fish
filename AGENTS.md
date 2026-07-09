@@ -209,6 +209,7 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 ### 修改前端 UI
 
 - 首页：[apps/web/app/routes/index.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/index.tsx) + `components/SourceSection.tsx`、`CompactArticleItem.tsx`
+- **首页「加载更多」折叠**：首页按 priority 排序展示资讯源后，把「最新文章 `publishedAt` 距今超过 30 天（或无文章）」的源用 `isStaleGroup()`（`packages/shared/src/utils.ts`）判定为过期，集中收起到主网格下方的可折叠「加载更多（N 个较旧资讯源）」区块，点击展开后与正常卡片同等展示。判定纯前端、基于 `/api/articles/grouped` 现有数据，不改 API 与 schema。
 - 后台：[apps/web/app/routes/fish.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/fish.tsx) + `SourceForm.tsx`
 - 后台通过 `usePollingAfterFetch` hook 轮询检测 `lastFetchedAt` 变化，实现每个源独立的抓取状态追踪（转动/完成）
 - 主题在 [apps/web/app/routes/__root.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/__root.tsx) 的 `createTheme({ primaryColor: 'blue', defaultRadius: 'md' })`
