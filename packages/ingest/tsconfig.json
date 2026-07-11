@@ -3,8 +3,9 @@
   "compilerOptions": {
     "paths": {
       "@repo/db": ["../../packages/db/src/index.ts"],
+      "@repo/db/schema": ["../../packages/db/src/schema.ts"],
       "@repo/shared": ["../../packages/shared/src/index.ts"],
-      "@repo/ingest": ["../../packages/ingest/src/index.ts"]
+      "@repo/telemetry": ["../../packages/telemetry/src/index.ts"]
     },
     "types": ["@cloudflare/workers-types"]
   },

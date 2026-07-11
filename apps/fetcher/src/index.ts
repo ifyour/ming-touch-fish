@@ -2,8 +2,8 @@ import type { MessageBatch, ScheduledController } from '@cloudflare/workers-type
 import type { QueueMessage } from '@repo/shared';
 import { isCloudflareQuotaError } from '@repo/shared';
 import { logger } from '@repo/telemetry';
-import { fetchAndStore, getSourcesToFetch } from './fetcher.js';
-import type { Env } from './types.js';
+import { fetchAndStore, getSourcesToFetch } from '@repo/ingest';
+import type { Env } from '@repo/ingest';
 
 export default {
   async fetch(_request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {

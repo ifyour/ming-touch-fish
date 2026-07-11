@@ -1,5 +1,6 @@
 import type { FeedData } from '@extractus/feed-extractor';
 import { logger } from '@repo/telemetry';
+import { BROWSER_UA } from '@repo/shared';
 import { scrapePage } from './firecrawl.js';
 
 const V2EX_FIRECRAWL_URL = 'https://v2ex.com/?';
@@ -56,7 +57,7 @@ function isRssXml(body: string): boolean {
 }
 
 const V2EX_TOPIC_API = 'https://www.v2ex.com/api/topics/show.json?id=';
-const TOPIC_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+const TOPIC_UA = BROWSER_UA;
 
 // 热议条目在首页 #TopicsHot 里只有标题与链接，没有正文。为让文章总结
 // （/api/articles/:id/summary）的 RSS 正文回退可用，这里用 V2EX API 补全每条

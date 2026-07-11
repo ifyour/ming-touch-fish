@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { SimpleGrid, Alert, Container, Text, Loader, Center, Collapse, Anchor, Stack } from '@mantine/core';
 import { IconAlertCircle, IconChevronDown } from '@tabler/icons-react';
 import { useState } from 'react';
-import type { ArticleGroupedBySource } from '@repo/shared';
+import type { ArticleGroupedBySource } from '../types/api';
 import { SourceSection } from '../components/SourceSection.js';
 import { getApiUrl } from '../utils/apiUrl.js';
 

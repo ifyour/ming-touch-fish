@@ -1,5 +1,5 @@
 import { Stack, Title, Text, Card, ActionIcon, Tooltip, Anchor, Center } from '@mantine/core';
-import type { ArticleGroupedBySource } from '@repo/shared';
+import type { ArticleGroupedBySource } from '../types/api';
 import { getSourceHomepage } from '@repo/shared';
 import { CompactArticleItem } from './CompactArticleItem.js';
 import { IconCheck } from '@tabler/icons-react';

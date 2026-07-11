@@ -1,7 +1,7 @@
 import { extract, extractFromXml, type FeedData } from '@extractus/feed-extractor';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@repo/db';
-import { normalizeUrl, isLatinText, shouldFetchNow, isCloudflareQuotaError, SUMMARY_UAS, fetchWithUA } from '@repo/shared';
+import { normalizeUrl, isLatinText, shouldFetchNow, isCloudflareQuotaError, SUMMARY_UAS, BROWSER_UA, fetchWithUA } from '@repo/shared';
 import { logger } from '@repo/telemetry';
 import type { Env } from './types.js';
 import { articleExists } from './dedup.js';
@@ -29,7 +29,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
 
   logger.info(`Fetching source: ${source.name}`, { service: 'fetcher', sourceId: source.id, url: source.url });
 
-  const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+  const UA = BROWSER_UA;
   const V2EX_API = 'https://www.v2ex.com/api/topics/latest.json';
 
   async function fetchFeed(url: string): Promise<FeedData> {

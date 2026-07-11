@@ -17,9 +17,10 @@
 .
 ├── apps/
 │   ├── web/          # TanStack Start 前端 + Hono API（Cloudflare Pages）
-│   └── fetcher/      # 定时抓取 Worker（Cloudflare Workers）
+│   └── fetcher/      # 定时抓取 Worker 入口（Cloudflare Workers，逻辑来自 @repo/ingest）
 ├── packages/
 │   ├── db/           # Drizzle schema + D1 client
+│   ├── ingest/       # 抓取核心库（抓 RSS / 去重 / DeepL 翻译 / Firecrawl / V2EX，供 fetcher 与 web 共用）
 │   ├── shared/       # 共享类型与工具
 │   └── telemetry/    # 结构化日志
 └── package.json

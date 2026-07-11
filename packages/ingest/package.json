@@ -1,0 +1,30 @@
+{
+  "name": "@repo/ingest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./fetcher": {
+      "types": "./src/fetcher.ts",
+      "default": "./src/fetcher.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@extractus/feed-extractor": "^7.1.0",
+    "@repo/db": "workspace:*",
+    "@repo/shared": "workspace:*",
+    "@repo/telemetry": "workspace:*",
+    "drizzle-orm": "^0.39.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250100.0",
+    "typescript": "^5.7.0"
+  }
+}

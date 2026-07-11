@@ -48,7 +48,8 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Source, SourceInput, SourceWithLastFetchCount } from "@repo/shared";
+import type { Source, SourceInput } from "@repo/shared";
+import type { SourceWithLastFetchCount } from "../types/api";
 import { formatRelativeTime } from "@repo/shared";
 import { SourceForm } from "../components/SourceForm.js";
 import { getApiUrl } from "../utils/apiUrl.js";

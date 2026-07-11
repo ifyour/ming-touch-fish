@@ -2,10 +2,6 @@ import type { Source, Article } from '@repo/db';
 
 export type { Source, Article };
 
-export interface SourceWithLastFetchCount extends Source {
-  lastFetchCount: number;
-}
-
 export interface QueueMessage {
   sourceId: number;
 }
@@ -15,11 +11,6 @@ export interface SourceInput {
   url: string;
   fetchFrequency?: 'hourly' | 'twice_daily' | 'daily';
   isActive?: boolean;
-}
-
-export interface ArticleGroupedBySource {
-  source: Source;
-  articles: Article[];
 }
 
 export interface ApiError {

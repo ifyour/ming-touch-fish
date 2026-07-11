@@ -5,10 +5,11 @@ import { z } from 'zod';
 import { createDb, schema } from '@repo/db';
 import { extract } from '@extractus/feed-extractor';
 import { logger } from '@repo/telemetry';
-import type { SourceInput } from '@repo/shared';
+import { BROWSER_UA, type SourceInput } from '@repo/shared';
+import type { Env } from '@repo/ingest';
 import type { Bindings } from '../types';
 
-function createFetcherEnv(env: Bindings) {
+function createFetcherEnv(env: Bindings): Env {
   return {
     DB: env.DB,
     DEEPL_API_KEY: env.DEEPL_API_KEY ?? '',
@@ -36,7 +37,7 @@ async function isFeed(url: string, signal?: AbortSignal): Promise<boolean> {
 
 const FEED_PATHS = ['/feed', '/feed.xml', '/rss', '/rss.xml', '/atom.xml', '/index.xml'];
 
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+const UA = BROWSER_UA;
 
 const createSourceSchema = z.object({
   name: z.string().min(1).max(200),
@@ -186,8 +187,8 @@ app.post('/fetch-all', async (c) => {
   const sources = await db.select().from(schema.sources).where(eq(schema.sources.isActive, true));
 
   if (c.env.DIRECT_FETCH) {
-    const { fetchAndStore } = await import('@repo/fetcher/fetcher');
-    const fetcherEnv = createFetcherEnv(c.env);
+      const { fetchAndStore } = await import('@repo/ingest/fetcher');
+      const fetcherEnv = createFetcherEnv(c.env);
     let fetched = 0;
     for (const source of sources) {
       try {
@@ -222,7 +223,7 @@ app.post('/:id/fetch', async (c) => {
 
   if (c.env.DIRECT_FETCH) {
     try {
-      const { fetchAndStore } = await import('@repo/fetcher/fetcher');
+      const { fetchAndStore } = await import('@repo/ingest/fetcher');
       await fetchAndStore(createFetcherEnv(c.env), id);
       return c.json({ success: true, fetched: true });
     } catch (err) {

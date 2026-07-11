@@ -4,7 +4,8 @@
     "paths": {
       "@repo/shared": ["../../packages/shared/src/index.ts"],
       "@repo/db": ["../../packages/db/src/index.ts"],
-      "@repo/db/schema": ["../../packages/db/src/schema.ts"]
+      "@repo/db/schema": ["../../packages/db/src/schema.ts"],
+      "@repo/ingest": ["../../packages/ingest/src/index.ts"]
     },
     "types": ["@cloudflare/workers-types"]
   },

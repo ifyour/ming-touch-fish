@@ -27,23 +27,26 @@ pnpm monorepo + Turborepo。
 │   │   │   └── utils/apiUrl.ts   # 同构 API URL（server 用 getRequestURL，client 用相对路径）
 │   │   ├── app.config.ts         # cloudflare-pages preset
 │   │   └── wrangler.toml         # D1 binding + Queue producer binding
-│   └── fetcher/                  # Cloudflare Worker（cron + queue consumer）
+│   └── fetcher/                  # Cloudflare Worker（cron + queue consumer），仅含 worker 入口
 │       ├── src/
-│       │   ├── index.ts          # 入口：scheduled() 入队、queue() 消费
-│       │   ├── fetcher.ts        # 抓取与入库主逻辑
-│       │   ├── firecrawl.ts      # Firecrawl Scrape API 客户端
-│       │   ├── v2ex-adapter.ts   # V2EX 热议适配器（Firecrawl 抓取首页 → 解析 #TopicsHot）
-│       │   ├── translator.ts     # DeepL API v2 调用
-│       │   ├── dedup.ts          # 按 URL 去重
-│       │       └── types.ts          # Env 类型（DB / NEWS_QUEUE / DEEPL_API_KEY / FIRECRAWL_API_KEY / GEMINI_API_KEY）
+│       │   └── index.ts          # 入口：scheduled() 入队、queue() 消费，逻辑来自 @repo/ingest
 │       └── wrangler.toml         # cron + queue consumer + D1 + migrations_dir
 ├── packages/
 │   ├── db/                       # Drizzle ORM schema + D1 client
 │   │   ├── src/schema.ts         # sources / articles 两张表
 │   │   ├── migrations/           # SQL 迁移（被 fetcher 的 wrangler.toml 引用）
 │   │   └── drizzle.config.ts
+│   ├── ingest/                   # 抓取核心库（无 worker 入口，供 fetcher 与 web 共用）
+│   │   └── src/
+│   │       ├── fetcher.ts        # 抓取与入库主逻辑（fetchAndStore / getSourcesToFetch）
+│   │       ├── firecrawl.ts      # Firecrawl Scrape API 客户端
+│   │       ├── v2ex-adapter.ts   # V2EX 热议适配器（Firecrawl 抓取首页 → 解析 #TopicsHot）
+│   │       ├── translator.ts     # DeepL API v2 调用
+│   │       ├── dedup.ts          # 按 URL 去重
+│   │       ├── types.ts          # Env 类型（DB / NEWS_QUEUE / DEEPL_API_KEY / FIRECRAWL_API_KEY）
+│   │       └── index.ts          # 统一出口
 │   ├── shared/                   # 跨端共享类型与工具
-│   │   └── src/{types,utils}.ts  # QueueMessage / SourceInput / normalizeUrl / shouldFetchNow / isCloudflareQuotaError / formatRelativeTime
+│   │   └── src/{types,utils}.ts  # QueueMessage / SourceInput / normalizeUrl / shouldFetchNow / isCloudflareQuotaError / formatRelativeTime / BROWSER_UA
 │   └── telemetry/                # 结构化日志（logger）
 ├── turbo.json                    # build / dev / typecheck / db:generate / db:migrate / deploy
 ├── pnpm-workspace.yaml
@@ -74,10 +77,11 @@ pnpm monorepo + Turborepo。
 
 ## 架构与数据流
 
-### 两个部署单元
+### 两个部署单元 + 一个共享库
 
 1. **web**（Cloudflare Pages）：TanStack Start SSR + Hono API。Hono app 在 [apps/web/app/server/app.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/app.ts) 装配，通过 [apps/web/app/routes/api/$.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/api/$.ts) 的通配 API 路由挂载到 `/api/*`。web 既是前端也是 API 服务器，同时是 Queue 的 **producer**。
 2. **fetcher**（Cloudflare Workers）：cron 触发的抓取 worker，是 Queue 的 **consumer**，也是 producer（cron 入队自身消费）。负责抓 RSS → 去重 → DeepL 翻译 → 入库 D1。
+3. **@repo/ingest**（packages/ingest）：抓取核心库，**无 worker 入口**，抽出原 `apps/fetcher/src` 下的 `fetcher.ts`/`dedup.ts`/`translator.ts`/`firecrawl.ts`/`v2ex-adapter.ts`/`types.ts`。`apps/fetcher` 现在只留 `src/index.ts` 这个 worker 入口，依赖 `@repo/ingest`；`apps/web` 的 `DIRECT_FETCH` 本地同步抓取路径也依赖 `@repo/ingest`，**不再直接依赖 worker 包 `@repo/fetcher`**。这样两个部署单元彻底解耦，抓取逻辑只维护一份。
 
 ### 抓取/翻译流水线
 
@@ -164,7 +168,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 3. 创建 Queue：`wrangler queues create news-fetch-queue`
 4. 应用迁移：`wrangler d1 migrations apply news-aggregator --local`
 5. 复制 `apps/fetcher/.dev.vars.example` 为 `apps/fetcher/.dev.vars`，填入 DeepL API key 和 Firecrawl API key。
-6. 创建 `apps/web/.dev.vars`，设置 `DIRECT_FETCH=true`、`DEEPL_API_KEY`、`FIRECRAWL_API_KEY`（与 fetcher 相同）和 `GEMINI_API_KEY`（文章 AI 总结用）。本地开发时 web 直接调用 fetcher 的 `fetchAndStore()` 同步抓取，不走 Queue。
+6. 创建 `apps/web/.dev.vars`，设置 `DIRECT_FETCH=true`、`DEEPL_API_KEY`、`FIRECRAWL_API_KEY`（与 fetcher 相同）和 `GEMINI_API_KEY`（文章 AI 总结用）。本地开发时 web 直接调用 `@repo/ingest` 的 `fetchAndStore()` 同步抓取，不走 Queue。
 7. 两个终端分别跑 `pnpm dev:web` 和 `pnpm dev:fetcher`。
 8. 访问 <http://localhost:3000>，首页右上 "TouchFish News" 文字连点 3 次进入 `/fish`。
 

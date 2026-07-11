@@ -167,7 +167,7 @@ export function formatRelativeTime(date: Date | string | null | undefined): stri
   return `${days} 天前`;
 }
 
-const BROWSER_UA =
+export const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 const FALLBACK_UA =
   'Mozilla/5.0 (compatible; Feedfetcher-Google; +http://www.google.com/feedfetcher.html)';

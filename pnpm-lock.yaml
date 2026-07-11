@@ -22,21 +22,15 @@ importers:
 
   apps/fetcher:
     dependencies:
-      '@extractus/feed-extractor':
-        specifier: ^7.1.0
-        version: 7.2.1
-      '@repo/db':
+      '@repo/ingest':
         specifier: workspace:*
-        version: link:../../packages/db
+        version: link:../../packages/ingest
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@repo/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
-      drizzle-orm:
-        specifier: ^0.39.0
-        version: 0.39.3(@cloudflare/workers-types@4.20260629.1)
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250100.0
@@ -83,9 +77,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@repo/fetcher':
+      '@repo/ingest':
         specifier: workspace:*
-        version: link:../fetcher
+        version: link:../../packages/ingest
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -157,6 +151,31 @@ importers:
       drizzle-kit:
         specifier: ^0.30.0
         version: 0.30.6
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/ingest:
+    dependencies:
+      '@extractus/feed-extractor':
+        specifier: ^7.1.0
+        version: 7.2.1
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../db
+      '@repo/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@repo/telemetry':
+        specifier: workspace:*
+        version: link:../telemetry
+      drizzle-orm:
+        specifier: ^0.39.0
+        version: 0.39.3(@cloudflare/workers-types@4.20260629.1)
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20250100.0
+        version: 4.20260629.1
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

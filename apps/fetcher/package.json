@@ -3,20 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "exports": {
-    "./fetcher": "./src/fetcher.ts"
-  },
   "scripts": {
     "dev": "wrangler dev --test-scheduled",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@extractus/feed-extractor": "^7.1.0",
-    "@repo/db": "workspace:*",
+    "@repo/ingest": "workspace:*",
     "@repo/shared": "workspace:*",
-    "@repo/telemetry": "workspace:*",
-    "drizzle-orm": "^0.39.0"
+    "@repo/telemetry": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250100.0",
