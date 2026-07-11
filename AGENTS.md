@@ -139,7 +139,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 - fetcher 的 `queue()` 处理失败时：**配额类错误 `message.ack()`（重试无意义）**，其他错误 `message.retry()`。`isCloudflareQuotaError()` 在 [packages/shared/src/utils.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/packages/shared/src/utils.ts) 已实现，不要在 catch 里无脑 retry。
 - URL 去重前必须先过 `normalizeUrl()` 剥离 utm_* / fbclid / gclid / ref / source 等追踪参数，再按 `(source_id, url)` 复合唯一索引去重，允许不同源共享同一条 URL。
 - V2EX 源（URL 含 `v2ex.com/index.xml`）走专用 JSON API 分支，不走 RSS 解析。
-- V2EX 热议源（URL 含 `v2ex.com/#hot-topics`）通过 Firecrawl Scrape API 抓取首页 HTML，正则提取 `#TopicsHot` 区块。URL 末尾带 `?` 查询参数强制 V2EX 返回 HTML 而非 RSS/XML（内容协商）。Firecrawl API key 通过环境变量 `FIRECRAWL_API_KEY` 提供，配额 402 错误由 `isCloudflareQuotaError()` 检测并 ack。
+- V2EX 热议源（URL 含 `v2ex.com/#hot-topics`）通过 Firecrawl Scrape API 抓取首页 HTML，正则提取 `#TopicsHot` 区块。URL 末尾带 `?` 查询参数强制 V2EX 返回 HTML 而非 RSS/XML（内容协商）。Firecrawl API key 通过环境变量 `FIRECRAWL_API_KEY` 提供，配额 402 错误由 `isCloudflareQuotaError()` 检测并 ack。**热议条目在首页 `#TopicsHot` 中只有标题与链接、无正文**，因此抓取后会用 V2EX `topics/show.json?id=<topicId>` API 逐条补全 `content_rendered`，写入 `metadata.content` / `metadata.description`。这样文章总结（`/api/articles/:id/summary`）的 RSS 正文回退（第 2 级）才能命中；否则热议源的文章无任何正文落库，总结只能依赖请求时实时抓取话题页，在 dev / 受限网络下会稳定返回 422「正文抽取不足」。该补全是尽力而为：单条 API 失败只跳过该条，不影响其余。
 - Firecrawl 请求默认带上 `maxAge: 0` 强制绕过缓存，确保每次抓取拿到最新页面。Firecrawl 默认缓存 2 天，不设此参数会导致 V2EX 热榜始终返回旧数据。
 
 ### 代码风格
@@ -226,7 +226,14 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 
 所有 API 在 [apps/web/app/server/routes/](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/routes/) 下。新增子路由记得在 [app.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/app.ts) 里 `app.route('/api/xxx', xxxRoute)`。入参用 `zValidator` + zod 校验。
 
-- `GET /api/articles/:id/summary`：文章 **AI 总结**。先查 D1 `summary` 字段，命中缓存直接返回 `{ summary, cached: true }`；未命中则用 `fetchWithUA()`（`@repo/shared` 多 UA 回退）抓取文章 URL → `linkedom` 构造 DOM + `@mozilla/readability` 提取正文（截断前 8000 字符）→ 调 **Gemini `gemini-3.1-flash-lite`**（`generativelanguage.googleapis.com`，需环境变量 `GEMINI_API_KEY`）用固定提示词生成 50~80 字中文概述。请求带 `generationConfig.thinkingConfig.thinkingBudget: 0` 关闭思考（若该模型支持思考），避免思考 token 吃光 `maxOutputTokens` 预算导致输出被截断（`finishReason: MAX_TOKENS`，摘要只剩几个字） → 写回 `summary` 字段并返回。**正文抽取不足（清洗后 < 80 字或有效字符占比 < 30%，多见于 V2EX 等 JS 渲染页 / 站点首页）直接返回 422 `{ error: '正文抽取不足' }`，不调 Gemini、不写库，可后续重试**；其他抽取 / 总结错误返回 500，不回退标题。前端 `CompactArticleItem` 每行的 AI 图标**默认隐藏，仅 hover 标题行时淡入**（`IconSparkles`，tooltip「总结全文」）；点击抓取/读取缓存 summary 后行内展开，图标变为 `IconX`（tooltip「关闭总结」），点击即收起；**失败态同理**：返回 422/500 后行内展示错误提示，图标同样变为 `IconX`，点击收起错误提示；**不论是否已有缓存，首页刷新默认不展开任何总结**，保持干扰最小。
+- `GET /api/articles/:id/summary`：文章 **AI 总结**。先查 D1 `summary` 字段，命中缓存直接返回 `{ summary, cached: true }`；未命中则按**三级回退**抽取正文，任一级抽到「充足正文」（清洗后 ≥ 80 字且有效字符占比 ≥ 30%，见 `isContentSufficient`）即用其调 Gemini，全部不足才 422：
+  1. **实时抓取文章 URL**：`extractArticleText()` → `fetchWithUA()`（`@repo/shared` 多 UA 回退）+ `linkedom` 构造 DOM + `@mozilla/readability` 提取正文。该路径**关闭去标签兜底**（`extractFromHtml({ allowStripFallback: false })`）——Readability 取不到正文就抛错，避免把 JS 渲染页 shell 当正文、绕过下方 RSS 回退并缓存垃圾。
+  2. **回退 RSS 正文**：`metadata.content`（fetcher 落库时采集的 `content:encoded` / `content` / `content_rendered`，截断前 8000 字符），走 `extractFromHtml()` 去标签兜底。
+  3. **回退 RSS 简介**：`metadata.description`（采集的 `summary ?? description`），同样走 `extractFromHtml()`。
+  - 调 **Gemini `gemini-3.1-flash-lite`**（`generativelanguage.googleapis.com`，需环境变量 `GEMINI_API_KEY`）用固定提示词生成 50~80 字中文概述。请求带 `generationConfig.thinkingConfig.thinkingBudget: 0` 关闭思考（若该模型支持思考），避免思考 token 吃光 `maxOutputTokens` 预算导致输出被截断（`finishReason: MAX_TOKENS`，摘要只剩几个字） → 写回 `summary` 字段并返回。
+  - **回退可观测性**：实时抓取失败会打 `logger.warn('文章总结实时抓取失败，回退 RSS 正文')`；最终用 RSS 回退生成时会打 `logger.info('文章总结使用 RSS 回退生成', { source: 'rss-content' | 'rss-desc' })`。所有日志带 `service: 'web-api'` 与 `articleId`，便于在 Cloudflare 控制台筛选回退占比。
+  - **正文抽取不足（三级回退后仍 < 80 字或有效字符占比 < 30%，多见于 V2EX 等 JS 渲染页 / 站点首页且 RSS 也无正文）直接返回 422 `{ error: '正文抽取不足' }`，不调 Gemini、不写库，可后续重试**；其他抽取 / 总结错误返回 500，不回退标题。注意：V2EX 等源因 fetcher 已落库 `content_rendered`，通常能在第 2 级命中，不再 422。
+  - 前端 `CompactArticleItem` 每行的 AI 图标**默认隐藏，仅 hover 标题行时淡入**（`IconSparkles`，tooltip「总结全文」）；点击抓取/读取缓存 summary 后行内展开，图标变为 `IconX`（tooltip「关闭总结」），点击即收起；**失败态同理**：返回 422/500 后行内展示错误提示，图标同样变为 `IconX`，点击收起错误提示；**不论是否已有缓存，首页刷新默认不展开任何总结**，保持干扰最小。
 - `GET /api/articles/grouped`：按源聚合文章。**支持 `scope` 查询参数**——`active`（默认）只返回「最新文章 30 天内」的活跃源，`stale` 只返回过期源。服务端先用 `GROUP BY` + `MAX(publishedAt)`（走 `articles_source_published_idx` 索引）算出每源最新发布时间做过期判定，再仅对目标源集合逐源 `ORDER BY published_at DESC LIMIT 20` 取文章（每源一次索引查询、1 个绑定参数，不走窗口函数全量扫描、也不拼超长 IN 列表触发 D1 参数上限），从源头压低 D1 读配额。活跃查询额外返回响应头 `X-Has-Stale: true/false` 指示是否存在可懒加载的过期源，并带 `Cache-Control: public, max-age=60` 边缘缓存（前端走默认缓存策略）。
 
 ## 已知坑

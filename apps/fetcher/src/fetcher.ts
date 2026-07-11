@@ -48,6 +48,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
           link: `https://v2ex.com/t/${t['id']}`,
           published: t['created'] ? new Date(Number(t['created']) * 1000).toISOString() : undefined,
           description: t['content_rendered'] as string | undefined,
+          content: t['content_rendered'] as string | undefined,
           author: (t['member'] as Record<string, unknown>)?.['username'] as string | undefined,
         })),
       };
@@ -66,6 +67,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
             summary: entry['summary'] ?? entry['description'] ?? '',
             author: entry['author'] ?? entry['creator'] ?? '',
             categories: entry['categories'] ?? [],
+            content: String(entry['content:encoded'] ?? entry['content'] ?? entry['content_rendered'] ?? '').slice(0, 8000),
           }),
         }, { headers: { 'user-agent': ua }, signal: AbortSignal.timeout(10000) });
       } catch (err) {
@@ -81,6 +83,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
             summary: entry['summary'] ?? entry['description'] ?? '',
             author: entry['author'] ?? entry['creator'] ?? '',
             categories: entry['categories'] ?? [],
+            content: String(entry['content:encoded'] ?? entry['content'] ?? entry['content_rendered'] ?? '').slice(0, 8000),
           }),
         });
     }
@@ -129,6 +132,8 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
         metadata: {
           description:
             (extra['summary'] as string | undefined) ?? (extra['description'] as string | undefined) ?? '',
+          content:
+            (extra['content'] as string | undefined) ?? (extra['content_rendered'] as string | undefined) ?? (extra['description'] as string | undefined) ?? '',
           author: (extra['author'] as string | undefined) ?? (extra['creator'] as string | undefined) ?? '',
           categories: Array.isArray(extra['categories']) ? extra['categories'] : [],
         },

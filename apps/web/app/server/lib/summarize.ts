@@ -9,7 +9,7 @@ export class InsufficientContentError extends Error {
   }
 }
 
-function isContentSufficient(text: string): boolean {
+export function isContentSufficient(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length < MIN_CONTENT_CHARS) return false;
   const meaningful = trimmed.replace(/[^\p{L}\p{N}]/gu, '');

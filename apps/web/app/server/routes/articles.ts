@@ -2,8 +2,8 @@ import { eq, desc, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { createDb, schema } from '@repo/db';
 import { STALE_GROUP_DAYS } from '@repo/shared';
-import { extractArticleText } from '../lib/extract';
-import { summarizeArticle, InsufficientContentError } from '../lib/summarize';
+import { extractArticleText, extractFromHtml } from '../lib/extract';
+import { summarizeArticle, isContentSufficient, InsufficientContentError } from '../lib/summarize';
 import { logger } from '@repo/telemetry';
 import type { Bindings } from '../types';
 
@@ -41,7 +41,11 @@ app.get('/:id/summary', async (c) => {
   }
 
   const row = await db
-    .select({ summary: schema.articles.summary, url: schema.articles.url })
+    .select({
+      summary: schema.articles.summary,
+      url: schema.articles.url,
+      metadata: schema.articles.metadata,
+    })
     .from(schema.articles)
     .where(eq(schema.articles.id, id))
     .get();
@@ -59,7 +63,62 @@ app.get('/:id/summary', async (c) => {
   }
 
   try {
-    const text = await extractArticleText(row.url);
+    let text: string | null = null;
+    let source: 'live' | 'rss-content' | 'rss-desc' | null = null;
+
+    // 1. 直接抓取文章 URL → Readability（取不到正文会抛错，交由下方 RSS 回退）
+    try {
+      text = await extractArticleText(row.url);
+      source = 'live';
+    } catch (err) {
+      logger.warn('文章总结实时抓取失败，回退 RSS 正文', {
+        service: 'web-api',
+        articleId: id,
+        error: err instanceof Error ? err.message : err,
+      });
+      text = null;
+    }
+
+    // 2. 回退到 RSS 正文（getExtraEntryFields 采集的 content）
+    if (!text || !isContentSufficient(text)) {
+      const content = (row.metadata as Record<string, unknown> | undefined)?.content as string | undefined;
+      if (content) {
+        try {
+          const t = extractFromHtml(content);
+          if (isContentSufficient(t)) {
+            text = t;
+            source = 'rss-content';
+          }
+        } catch {
+          // ignore, try next fallback
+        }
+      }
+    }
+
+    // 3. 回退到 RSS 简介（description / 摘要）
+    if (!text || !isContentSufficient(text)) {
+      const desc = (row.metadata as Record<string, unknown> | undefined)?.description as string | undefined;
+      if (desc) {
+        try {
+          const t = extractFromHtml(desc);
+          if (isContentSufficient(t)) {
+            text = t;
+            source = 'rss-desc';
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    if (!text || !isContentSufficient(text)) {
+      throw new InsufficientContentError();
+    }
+
+    if (source !== 'live') {
+      logger.info('文章总结使用 RSS 回退生成', { service: 'web-api', articleId: id, source });
+    }
+
     const summary = await summarizeArticle(text, apiKey);
     await db
       .update(schema.articles)
@@ -68,6 +127,7 @@ app.get('/:id/summary', async (c) => {
     return c.json({ summary, cached: false });
   } catch (err) {
     if (err instanceof InsufficientContentError) {
+      logger.warn('文章总结三级回退均失败', { service: 'web-api', articleId: id });
       return c.json({ error: err.message }, 422);
     }
     logger.error('文章总结失败', { service: 'web-api', articleId: id, error: err });
@@ -136,7 +196,6 @@ app.get('/grouped', async (c) => {
           summary: schema.articles.summary,
           publishedAt: schema.articles.publishedAt,
           fetchedAt: schema.articles.fetchedAt,
-          metadata: schema.articles.metadata,
         })
         .from(schema.articles)
         .where(eq(schema.articles.sourceId, sid))
