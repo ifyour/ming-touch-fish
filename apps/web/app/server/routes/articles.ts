@@ -1,7 +1,10 @@
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { createDb, schema } from '@repo/db';
+import { STALE_GROUP_DAYS } from '@repo/shared';
 import type { Bindings } from '../types';
+
+const ARTICLES_PER_SOURCE = 20;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -30,10 +33,17 @@ app.get('/', async (c) => {
 app.get('/grouped', async (c) => {
   const db = createDb(c.env.DB);
 
-  const rows = await db
+  // scope=stale 仅返回较慢更新的过期源（懒加载）；其余（含默认）返回活跃源。
+  const wantStale = c.req.query('scope') === 'stale';
+
+  // 先按源聚合最新文章发布时间，用于服务端判定过期，避免把过期源的文章也捞进首页初始查询。
+  // MAX(publishedAt) 走 articles_source_published_idx 索引高效得出，不需扫描文章行；
+  // 此处一并带上 source 整行（仅服务端内存使用，不下发），后续per源取文章时直接复用，避免每个源再发一次源查询。
+  // 注意：Drizzle 的 timestamp 模式在库中按「秒」存储，这里乘 1000 还原为毫秒再与 Date.now() 比较。
+  const sourceRows = await db
     .select({
       source: schema.sources,
-      article: schema.articles,
+      newestMs: sql<number | null>`CAST(MAX(${schema.articles.publishedAt}) AS INTEGER) * 1000`,
     })
     .from(schema.sources)
     .leftJoin(
@@ -41,30 +51,64 @@ app.get('/grouped', async (c) => {
       eq(schema.articles.sourceId, schema.sources.id)
     )
     .where(eq(schema.sources.isActive, true))
-    .orderBy(
-      desc(schema.sources.priority),
-      asc(schema.sources.createdAt),
-      desc(schema.articles.publishedAt)
-    );
+    .groupBy(schema.sources.id);
 
-  const grouped = new Map<number, { source: typeof schema.sources.$inferSelect; articles: typeof schema.articles.$inferSelect[] }>();
+  const threshold = STALE_GROUP_DAYS * 24 * 60 * 60 * 1000;
+  const staleIds = sourceRows
+    .filter((r) => r.newestMs == null || Date.now() - r.newestMs > threshold)
+    .map((r) => r.source.id);
 
-  for (const row of rows) {
-    const sourceId = row.source.id;
-    if (!grouped.has(sourceId)) {
-      grouped.set(sourceId, { source: row.source, articles: [] });
-    }
-    if (row.article) {
-      grouped.get(sourceId)!.articles.push(row.article);
-    }
+  const activeIds = sourceRows
+    .map((r) => r.source.id)
+    .filter((id) => !staleIds.includes(id));
+
+  const relevantIds = wantStale ? staleIds : activeIds;
+
+  // 提示前端是否存在可懒加载的过期源（仅在活跃查询时下发）。
+  if (!wantStale) {
+    c.header('X-Has-Stale', staleIds.length > 0 ? 'true' : 'false');
   }
 
-  const result = Array.from(grouped.values()).map((group) => ({
-    source: group.source,
-    articles: group.articles.slice(0, 50),
-  }));
+  if (relevantIds.length === 0) {
+    c.header('Cache-Control', 'public, max-age=60');
+    return c.json([]);
+  }
 
-  c.header('Cache-Control', 'no-cache, no-store');
+  // 逐源取「最新 ARTICLES_PER_SOURCE 篇」：每个源一次索引查询（LIMIT 20，1 个绑定参数），
+  // 既不走窗口函数 row_number() 的全量扫描，也不把所有文章 id 拼进一个超长 IN 列表（会触发 D1 参数上限）。
+  // 源信息直接复用上面聚合得到的 sourceRows，避免每个源再发一次源查询。
+  const perSource = await Promise.all(
+    relevantIds.map(async (sid) => {
+      const source = sourceRows.find((r) => r.source.id === sid)?.source;
+      const articles = await db
+        .select({
+          id: schema.articles.id,
+          sourceId: schema.articles.sourceId,
+          title: schema.articles.title,
+          translatedTitle: schema.articles.translatedTitle,
+          url: schema.articles.url,
+          publishedAt: schema.articles.publishedAt,
+          fetchedAt: schema.articles.fetchedAt,
+          metadata: schema.articles.metadata,
+        })
+        .from(schema.articles)
+        .where(eq(schema.articles.sourceId, sid))
+        .orderBy(desc(schema.articles.publishedAt))
+        .limit(ARTICLES_PER_SOURCE);
+      return { source, articles };
+    })
+  );
+
+  const result = perSource
+    .filter((x) => x.source)
+    .map((x) => ({ source: x.source!, articles: x.articles }))
+    .sort(
+      (a, b) =>
+        b.source.priority - a.source.priority ||
+        (a.source.createdAt?.getTime() ?? 0) - (b.source.createdAt?.getTime() ?? 0)
+    );
+
+  c.header('Cache-Control', 'public, max-age=60');
   return c.json(result);
 });
 

@@ -209,7 +209,8 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 ### 修改前端 UI
 
 - 首页：[apps/web/app/routes/index.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/index.tsx) + `components/SourceSection.tsx`、`CompactArticleItem.tsx`
-- **首页「加载更多」折叠**：首页按 priority 排序展示资讯源后，把「最新文章 `publishedAt` 距今超过 30 天（或无文章）」的源用 `isStaleGroup()`（`packages/shared/src/utils.ts`）判定为过期，集中收起到主网格下方的可折叠「加载更多（N 个较旧资讯源）」区块，点击展开后与正常卡片同等展示。判定纯前端、基于 `/api/articles/grouped` 现有数据，不改 API 与 schema。
+- **首页「加载更多」折叠（懒加载）**：首页按 priority 排序展示资讯源。**过期源（最新文章 `publishedAt` 距今超过 30 天，或无文章）的判定已下移到服务端**，由 `/api/articles/grouped` 的 `scope` 参数控制：默认 `?scope=active` 只返回活跃源、`?scope=stale` 只返回过期源（较慢更新的订阅源）。首页初始只请求活跃源；底部「加载更多」按钮**仅在点击时才请求 `?scope=stale`**，把过期源查询延迟到用户真正需要时，从源头压低 D1 读配额。服务端用活跃响应头 `X-Has-Stale: true/false` 告知前端是否存在可懒加载的过期源。判定口径见 `isStaleGroup()` / `isStaleByNewestPublishedAt()`（`packages/shared/src/utils.ts`）。
+- 首页卡片每源默认展示 10 条，点击卡片内 "Show more" 最多再展开 10 条（共 20 条）；`/api/articles/grouped` 服务端逐源 `ORDER BY published_at DESC LIMIT 20` 取最新 20 条（每源一次索引查询、1 个绑定参数），避免一次性捞出全部历史文章。
 - 后台：[apps/web/app/routes/fish.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/fish.tsx) + `SourceForm.tsx`
 - 后台通过 `usePollingAfterFetch` hook 轮询检测 `lastFetchedAt` 变化，实现每个源独立的抓取状态追踪（转动/完成）
 - 主题在 [apps/web/app/routes/__root.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/__root.tsx) 的 `createTheme({ primaryColor: 'blue', defaultRadius: 'md' })`
@@ -219,6 +220,8 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 ### 修改 API
 
 所有 API 在 [apps/web/app/server/routes/](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/routes/) 下。新增子路由记得在 [app.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/app.ts) 里 `app.route('/api/xxx', xxxRoute)`。入参用 `zValidator` + zod 校验。
+
+- `GET /api/articles/grouped`：按源聚合文章。**支持 `scope` 查询参数**——`active`（默认）只返回「最新文章 30 天内」的活跃源，`stale` 只返回过期源。服务端先用 `GROUP BY` + `MAX(publishedAt)`（走 `articles_source_published_idx` 索引）算出每源最新发布时间做过期判定，再仅对目标源集合逐源 `ORDER BY published_at DESC LIMIT 20` 取文章（每源一次索引查询、1 个绑定参数，不走窗口函数全量扫描、也不拼超长 IN 列表触发 D1 参数上限），从源头压低 D1 读配额。活跃查询额外返回响应头 `X-Has-Stale: true/false` 指示是否存在可懒加载的过期源，并带 `Cache-Control: public, max-age=60` 边缘缓存（前端走默认缓存策略）。
 
 ## 已知坑
 

@@ -92,7 +92,22 @@ export function isCloudflareQuotaError(err: unknown): string | null {
   return null;
 }
 
-const STALE_GROUP_DAYS = 30;
+export const STALE_GROUP_DAYS = 30;
+
+const STALE_THRESHOLD_MS = STALE_GROUP_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * 按「最新文章 publishedAt 距今是否超过 STALE_GROUP_DAYS 天」判定一个资讯源是否过期。
+ * 纯函数版本，入参为该源最新文章的发布时间（毫秒/Date/ISO 字符串），无文章或时间缺失视为过期。
+ * 供服务端（按源聚合最新发布时间）与前端共用，保证判定口径一致。
+ */
+export function isStaleByNewestPublishedAt(
+  newest: Date | string | number | null | undefined
+): boolean {
+  const ms = newest ? new Date(newest).getTime() : NaN;
+  if (!Number.isFinite(ms)) return true;
+  return Date.now() - ms > STALE_THRESHOLD_MS;
+}
 
 /**
  * 判定一个资讯源是否应被收起：最新文章 publishedAt 距今超过 STALE_GROUP_DAYS 天（或无文章）即视为过期。
@@ -106,8 +121,7 @@ export function isStaleGroup(
     const d = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
     return Math.max(max, d);
   }, 0);
-  if (!newest) return true;
-  return Date.now() - newest > STALE_GROUP_DAYS * 24 * 60 * 60 * 1000;
+  return isStaleByNewestPublishedAt(newest || null);
 }
 
 const FEED_PATH_RE = /\.(rss|xml|atom|json)$|\/(feed|rss|atom|feeds?)$/i;

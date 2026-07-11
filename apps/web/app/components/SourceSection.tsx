@@ -10,6 +10,7 @@ interface SourceSectionProps {
 }
 
 const INITIAL_COUNT = 10;
+const MAX_COUNT = 20;
 const STORAGE_KEY = 'read_articles';
 const MAX_READ_IDS = 5000;
 
@@ -44,7 +45,7 @@ export function SourceSection({ group }: SourceSectionProps) {
   const [readArticleIds, setReadArticleIds] = useState<Set<number>>(getReadArticleIds);
 
   const hasMore = articles.length > INITIAL_COUNT;
-  const displayArticles = expanded ? articles : articles.slice(0, INITIAL_COUNT);
+  const displayArticles = expanded ? articles.slice(0, MAX_COUNT) : articles.slice(0, INITIAL_COUNT);
   const allRead = displayArticles.length > 0 && displayArticles.every((a) => readArticleIds.has(a.id));
   const cardRef = useRef<HTMLDivElement>(null);
   const [lockedCardHeight, setLockedCardHeight] = useState<number | null>(null);
