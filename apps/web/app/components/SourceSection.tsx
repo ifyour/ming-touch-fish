@@ -48,11 +48,25 @@ export function SourceSection({ group }: SourceSectionProps) {
   const displayArticles = expanded ? articles.slice(0, MAX_COUNT) : articles.slice(0, INITIAL_COUNT);
   const allRead = displayArticles.length > 0 && displayArticles.every((a) => readArticleIds.has(a.id));
   const cardRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const [lockedCardHeight, setLockedCardHeight] = useState<number | null>(null);
 
   useEffect(() => {
     if (!expanded) setLockedCardHeight(null);
   }, [expanded]);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (typeof IntersectionObserver === 'undefined' || !header) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) setExpanded(false);
+      },
+      { threshold: 0 }
+    );
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   const handleReadArticle = (articleId: number) => {
     const prev = getReadArticleIds();
@@ -84,7 +98,7 @@ export function SourceSection({ group }: SourceSectionProps) {
 
   return (
     <Card ref={cardRef} withBorder radius="md" padding={0} style={lockedCardHeight ? { height: lockedCardHeight, display: 'flex', flexDirection: 'column' } : undefined} onMouseLeave={() => expanded && setExpanded(false)}>
-      <Card.Section withBorder inheritPadding py="sm" px="md">
+      <Card.Section ref={headerRef} withBorder inheritPadding py="sm" px="md">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title order={5} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
             <img

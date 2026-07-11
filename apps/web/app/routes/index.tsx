@@ -92,13 +92,13 @@ function HomePage() {
         <Alert>暂无资讯，请先添加资讯源并运行抓取。</Alert>
       ) : (
         <>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md" style={{ alignItems: 'start' }}>
             {activeGroups.map((group) => <SourceSection key={group.source.id} group={group} />)}
           </SimpleGrid>
           {showStale && staleGroups && (
             <Stack gap="sm" mt="md">
               <Collapse in={showStale}>
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md">
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md" style={{ alignItems: 'start' }}>
                   {staleGroups.map((group) => <SourceSection key={group.source.id} group={group} />)}
                 </SimpleGrid>
               </Collapse>
