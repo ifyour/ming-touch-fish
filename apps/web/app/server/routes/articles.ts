@@ -2,6 +2,9 @@ import { eq, desc, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { createDb, schema } from '@repo/db';
 import { STALE_GROUP_DAYS } from '@repo/shared';
+import { extractArticleText } from '../lib/extract';
+import { summarizeArticle, InsufficientContentError } from '../lib/summarize';
+import { logger } from '@repo/telemetry';
 import type { Bindings } from '../types';
 
 const ARTICLES_PER_SOURCE = 20;
@@ -28,6 +31,49 @@ app.get('/', async (c) => {
 
   c.header('Cache-Control', 'no-cache, no-store');
   return c.json(articles);
+});
+
+app.get('/:id/summary', async (c) => {
+  const db = createDb(c.env.DB);
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id)) {
+    return c.json({ error: 'invalid article id' }, 400);
+  }
+
+  const row = await db
+    .select({ summary: schema.articles.summary, url: schema.articles.url })
+    .from(schema.articles)
+    .where(eq(schema.articles.id, id))
+    .get();
+
+  if (!row) {
+    return c.json({ error: 'article not found' }, 404);
+  }
+  if (row.summary) {
+    return c.json({ summary: row.summary, cached: true });
+  }
+
+  const apiKey = c.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: 'GEMINI_API_KEY 未配置' }, 500);
+  }
+
+  try {
+    const text = await extractArticleText(row.url);
+    const summary = await summarizeArticle(text, apiKey);
+    await db
+      .update(schema.articles)
+      .set({ summary })
+      .where(eq(schema.articles.id, id));
+    return c.json({ summary, cached: false });
+  } catch (err) {
+    if (err instanceof InsufficientContentError) {
+      return c.json({ error: err.message }, 422);
+    }
+    logger.error('文章总结失败', { service: 'web-api', articleId: id, error: err });
+    const message = err instanceof Error ? err.message : '总结生成失败';
+    return c.json({ error: message }, 500);
+  }
 });
 
 app.get('/grouped', async (c) => {
@@ -87,6 +133,7 @@ app.get('/grouped', async (c) => {
           title: schema.articles.title,
           translatedTitle: schema.articles.translatedTitle,
           url: schema.articles.url,
+          summary: schema.articles.summary,
           publishedAt: schema.articles.publishedAt,
           fetchedAt: schema.articles.fetchedAt,
           metadata: schema.articles.metadata,

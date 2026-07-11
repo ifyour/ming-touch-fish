@@ -1,7 +1,7 @@
 import { extract, extractFromXml, type FeedData } from '@extractus/feed-extractor';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@repo/db';
-import { normalizeUrl, isLatinText, shouldFetchNow, isCloudflareQuotaError } from '@repo/shared';
+import { normalizeUrl, isLatinText, shouldFetchNow, isCloudflareQuotaError, SUMMARY_UAS, fetchWithUA } from '@repo/shared';
 import { logger } from '@repo/telemetry';
 import type { Env } from './types.js';
 import { articleExists } from './dedup.js';
@@ -57,7 +57,7 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
       return await fetchV2exHotTopics(env);
     }
 
-    const uas = [UA, 'Mozilla/5.0 (compatible; Feedfetcher-Google; +http://www.google.com/feedfetcher.html)'];
+    const uas = SUMMARY_UAS;
     for (const ua of uas) {
       try {
         return await extract(url, {
@@ -72,21 +72,19 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
         logger.warn(`Extract failed for ${url} with UA [${ua.slice(0, 40)}...]`, { service: 'fetcher', sourceId, error: err });
       }
     }
-    for (const ua of uas) {
-      const resp = await fetch(url, { headers: { 'user-agent': ua }, signal: AbortSignal.timeout(10000) });
-      if (resp.ok) {
-        const xml = await resp.text();
-        return extractFromXml(xml, {
-          descriptionMaxLen: 500,
+    const rawResp = await fetchWithUA(url);
+    if (rawResp.ok) {
+      const xml = await rawResp.text();
+      return extractFromXml(xml, {
+        descriptionMaxLen: 500,
           getExtraEntryFields: (entry) => ({
             summary: entry['summary'] ?? entry['description'] ?? '',
             author: entry['author'] ?? entry['creator'] ?? '',
             categories: entry['categories'] ?? [],
           }),
         });
-      }
-      logger.warn(`Fetch failed for ${url} with UA [${ua.slice(0, 40)}...]: HTTP ${resp.status}`, { service: 'fetcher', sourceId });
     }
+    logger.warn(`Fetch failed for ${url}: HTTP ${rawResp.status}`, { service: 'fetcher', sourceId });
     throw new Error(`All fetch attempts failed for ${url}`);
   }
 

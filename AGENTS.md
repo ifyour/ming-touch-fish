@@ -35,7 +35,7 @@ pnpm monorepo + Turborepo。
 │       │   ├── v2ex-adapter.ts   # V2EX 热议适配器（Firecrawl 抓取首页 → 解析 #TopicsHot）
 │       │   ├── translator.ts     # DeepL API v2 调用
 │       │   ├── dedup.ts          # 按 URL 去重
-│       │   └── types.ts          # Env 类型（DB / NEWS_QUEUE / DEEPL_API_KEY / FIRECRAWL_API_KEY）
+│       │       └── types.ts          # Env 类型（DB / NEWS_QUEUE / DEEPL_API_KEY / FIRECRAWL_API_KEY / GEMINI_API_KEY）
 │       └── wrangler.toml         # cron + queue consumer + D1 + migrations_dir
 ├── packages/
 │   ├── db/                       # Drizzle ORM schema + D1 client
@@ -110,7 +110,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 两张表（[packages/db/src/schema.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/packages/db/src/schema.ts)）：
 
 - `sources`：id / name / url / priority / fetch_frequency（hourly|twice_daily|daily）/ is_active / last_fetched_at / created_at / updated_at
-- `articles`：id / source_id (FK cascade) / title / translated_title（可空）/ url（**unique**）/ published_at / fetched_at / metadata(json)
+- `articles`：id / source_id (FK cascade) / title / translated_title（可空）/ url（**unique**）/ published_at / fetched_at / summary（可空，AI 总结缓存）/ metadata(json)
 
 关键索引：`articles_source_url_idx`（unique on source_id + url，跨源去重依据）、`articles_source_published_idx`、`sources_priority_idx`。
 
@@ -130,6 +130,8 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 - **翻译失败必须返回 `null`**，不要回退到原标题。前端用 `translatedTitle ?? title` 兜底。
 - 仅翻译拉丁文标题（`isLatinText` 启发式：拉丁字符占比 > 60%），中文源标题不进 DeepL。
 - 批量上限 50 条/请求，超时 15 秒。
+- **文章 AI 总结用 Gemini `gemini-3.5-flash`**（Google Generative Language API，`generativelanguage.googleapis.com`），通过 `fetch()` 调用，与翻译模块相互独立。该约束（禁用 Workers AI）仅针对翻译，总结走 Gemini 不受限。Gemini API key 作为环境变量 `GEMINI_API_KEY` 提供：本地写在 `apps/web/.dev.vars`（web 端直接用，不走 fetcher），生产在 `apps/web` 目录执行 `wrangler secret put GEMINI_API_KEY`。**绝不**把 key 写进代码或提交到版本控制。
+- 总结的正文抓取复用 `@repo/shared` 的 `fetchWithUA()`（多 UA 回退），不在 web 端重复实现 UA 逻辑。
 
 ### 抓取与队列
 
@@ -162,17 +164,20 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 3. 创建 Queue：`wrangler queues create news-fetch-queue`
 4. 应用迁移：`wrangler d1 migrations apply news-aggregator --local`
 5. 复制 `apps/fetcher/.dev.vars.example` 为 `apps/fetcher/.dev.vars`，填入 DeepL API key 和 Firecrawl API key。
-6. 创建 `apps/web/.dev.vars`，设置 `DIRECT_FETCH=true`、`DEEPL_API_KEY` 和 `FIRECRAWL_API_KEY`（与 fetcher 相同）。本地开发时 web 直接调用 fetcher 的 `fetchAndStore()` 同步抓取，不走 Queue。
+6. 创建 `apps/web/.dev.vars`，设置 `DIRECT_FETCH=true`、`DEEPL_API_KEY`、`FIRECRAWL_API_KEY`（与 fetcher 相同）和 `GEMINI_API_KEY`（文章 AI 总结用）。本地开发时 web 直接调用 fetcher 的 `fetchAndStore()` 同步抓取，不走 Queue。
 7. 两个终端分别跑 `pnpm dev:web` 和 `pnpm dev:fetcher`。
 8. 访问 <http://localhost:3000>，首页右上 "TouchFish News" 文字连点 3 次进入 `/fish`。
 
 web 端本地通过 `wrangler getBindingsProxy()` 拿 D1/Queue 绑定（[apps/web/app/routes/api/$.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/api/$.ts)）；如果失败回退到 `createMockEnv()`（空实现，仅用于类型检查不报错）。
+
+> 本地 D1 注意：web 与 fetcher 各自有独立的本地 sqlite 文件（同 `database_id` 但分属 `apps/web/.wrangler` 与 `apps/fetcher/.wrangler`）。新增迁移后，**两个本地库都要应用**：在 `apps/fetcher` 与 `apps/web` 分别执行 `wrangler d1 migrations apply news-aggregator --local`。若 web 本地库缺列导致 `no such column`，可直接 `wrangler d1 execute news-aggregator --local --command "ALTER TABLE articles ADD COLUMN summary text;"`（从 `apps/web` 目录执行）。
 
 ### 生产部署
 
 1. 在 Cloudflare 控制台创建 D1 `news-aggregator` 与 Queue `news-fetch-queue`，ID 填进两个 `wrangler.toml`。
 2. `wrangler d1 migrations apply news-aggregator --remote`
 3. 在 `apps/fetcher` 目录：`wrangler secret put DEEPL_API_KEY`、`wrangler secret put FIRECRAWL_API_KEY`
+4. 在 `apps/web` 目录：`wrangler secret put GEMINI_API_KEY`（文章 AI 总结）
 4. `pnpm deploy:fetcher` 然后 `pnpm deploy:web`
 
 ## 测试 fetcher（本地触发 cron）
@@ -221,6 +226,7 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 
 所有 API 在 [apps/web/app/server/routes/](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/routes/) 下。新增子路由记得在 [app.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/app.ts) 里 `app.route('/api/xxx', xxxRoute)`。入参用 `zValidator` + zod 校验。
 
+- `GET /api/articles/:id/summary`：文章 **AI 总结**。先查 D1 `summary` 字段，命中缓存直接返回 `{ summary, cached: true }`；未命中则用 `fetchWithUA()`（`@repo/shared` 多 UA 回退）抓取文章 URL → `linkedom` 构造 DOM + `@mozilla/readability` 提取正文（截断前 8000 字符）→ 调 **Gemini `gemini-3.5-flash`**（`generativelanguage.googleapis.com`，需环境变量 `GEMINI_API_KEY`）用固定提示词生成 50~80 字中文概述。**`gemini-3.5-flash` 是 thinking 模型，请求必须带 `generationConfig.thinkingConfig.thinkingBudget: 0` 关闭思考**，否则思考 token 会吃光 `maxOutputTokens` 预算导致输出被截断（`finishReason: MAX_TOKENS`，摘要只剩几个字） → 写回 `summary` 字段并返回。**正文抽取不足（清洗后 < 80 字或有效字符占比 < 30%，多见于 V2EX 等 JS 渲染页 / 站点首页）直接返回 422 `{ error: '正文抽取不足' }`，不调 Gemini、不写库，可后续重试**；其他抽取 / 总结错误返回 500，不回退标题。前端 `CompactArticleItem` 每行的 AI 图标**默认隐藏，仅 hover 标题行时淡入**（`IconSparkles`，tooltip「总结全文」）；点击抓取/读取缓存 summary 后行内展开，图标变为 `IconX`（tooltip「关闭总结」），点击即收起；**失败态同理**：返回 422/500 后行内展示错误提示，图标同样变为 `IconX`，点击收起错误提示；**不论是否已有缓存，首页刷新默认不展开任何总结**，保持干扰最小。
 - `GET /api/articles/grouped`：按源聚合文章。**支持 `scope` 查询参数**——`active`（默认）只返回「最新文章 30 天内」的活跃源，`stale` 只返回过期源。服务端先用 `GROUP BY` + `MAX(publishedAt)`（走 `articles_source_published_idx` 索引）算出每源最新发布时间做过期判定，再仅对目标源集合逐源 `ORDER BY published_at DESC LIMIT 20` 取文章（每源一次索引查询、1 个绑定参数，不走窗口函数全量扫描、也不拼超长 IN 列表触发 D1 参数上限），从源头压低 D1 读配额。活跃查询额外返回响应头 `X-Has-Stale: true/false` 指示是否存在可懒加载的过期源，并带 `Cache-Control: public, max-age=60` 边缘缓存（前端走默认缓存策略）。
 
 ## 已知坑

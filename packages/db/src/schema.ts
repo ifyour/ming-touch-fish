@@ -38,6 +38,7 @@ export const articles = sqliteTable(
     fetchedAt: integer('fetched_at', { mode: 'timestamp' })
       .notNull()
       .$defaultFn(() => new Date()),
+    summary: text('summary'),
     metadata: text('metadata', { mode: 'json' }),
   },
   (table) => ({

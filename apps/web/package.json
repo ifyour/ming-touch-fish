@@ -17,6 +17,8 @@
     "@extractus/feed-extractor": "^7.1.0",
     "@hono/zod-validator": "^0.4.0",
     "@mantine/core": "^7.17.0",
+    "@mozilla/readability": "^0.5.0",
+    "linkedom": "^0.16.11",
     "@mantine/form": "^7.17.0",
     "@mantine/hooks": "^7.17.0",
     "@mantine/notifications": "^7.17.0",

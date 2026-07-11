@@ -56,6 +56,7 @@ wrangler queues create news-fetch-queue
 # 复制模板到 apps/fetcher/.dev.vars，填入 DeepL API key 和 Firecrawl API key
 # .dev.vars 已被 gitignore，仅用于本地开发
 cp apps/fetcher/.dev.vars.example apps/fetcher/.dev.vars
+# 在 apps/web/.dev.vars 填入 GEMINI_API_KEY（文章 AI 总结用）
 ```
 
 ### 5. 启动服务
@@ -90,6 +91,8 @@ wrangler d1 migrations apply news-aggregator --remote
 # 在 apps/fetcher 目录下执行
 wrangler secret put DEEPL_API_KEY
 wrangler secret put FIRECRAWL_API_KEY
+# 在 apps/web 目录下执行（文章 AI 总结）
+wrangler secret put GEMINI_API_KEY
 ```
 
 ### 4. 部署

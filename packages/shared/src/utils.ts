@@ -166,3 +166,34 @@ export function formatRelativeTime(date: Date | string | null | undefined): stri
   const days = Math.floor(hours / 24);
   return `${days} 天前`;
 }
+
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+const FALLBACK_UA =
+  'Mozilla/5.0 (compatible; Feedfetcher-Google; +http://www.google.com/feedfetcher.html)';
+
+export const SUMMARY_UAS = [BROWSER_UA, FALLBACK_UA];
+
+const FETCH_TIMEOUT = 10000;
+
+/**
+ * 用多个 UA 回退抓取 URL，返回第一个成功的响应；全部失败则抛出最后一条错误。
+ * web（文章总结抽正文）与 fetcher（抓源）共用，避免重复实现 UA 回退。
+ */
+export async function fetchWithUA(url: string, init?: RequestInit): Promise<Response> {
+  let lastErr: unknown;
+  for (const ua of SUMMARY_UAS) {
+    try {
+      const resp = await fetch(url, {
+        ...init,
+        headers: { 'user-agent': ua, ...(init?.headers ?? {}) },
+        signal: init?.signal ?? AbortSignal.timeout(FETCH_TIMEOUT),
+      });
+      if (resp.ok) return resp;
+      lastErr = new Error(`HTTP ${resp.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr ?? new Error(`All fetch attempts failed for ${url}`);
+}
