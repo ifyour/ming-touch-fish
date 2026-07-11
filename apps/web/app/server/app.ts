@@ -5,6 +5,7 @@ import { prettyJSON } from 'hono/pretty-json';
 import { logger } from '@repo/telemetry';
 import sourcesRoute from './routes/sources';
 import articlesRoute from './routes/articles';
+import faviconRoute from './routes/favicon';
 import type { Bindings } from './types';
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -31,6 +32,7 @@ app.onError((err, c) => {
 
 app.route('/api/sources', sourcesRoute);
 app.route('/api/articles', articlesRoute);
+app.route('/api/favicon', faviconRoute);
 
 app.get('/api/health', (c) => c.json({ status: 'ok' }));
 

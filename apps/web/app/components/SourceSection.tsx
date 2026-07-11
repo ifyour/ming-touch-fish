@@ -80,11 +80,25 @@ export function SourceSection({ group }: SourceSectionProps) {
     setExpanded(true);
   };
 
+  const faviconSrc = `/api/favicon?url=${encodeURIComponent(getSourceHomepage(source.url))}`;
+
   return (
     <Card ref={cardRef} withBorder radius="md" padding={0} style={lockedCardHeight ? { height: lockedCardHeight, display: 'flex', flexDirection: 'column' } : undefined} onMouseLeave={() => expanded && setExpanded(false)}>
       <Card.Section withBorder inheritPadding py="sm" px="md">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Title order={5}>
+          <Title order={5} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <img
+              src={faviconSrc}
+              width={16}
+              height={16}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              style={{ borderRadius: 3, objectFit: 'contain', flexShrink: 0 }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
             <Anchor href={getSourceHomepage(source.url)} target="_blank" rel="noopener noreferrer" underline="never" c="inherit">
               {source.name}
             </Anchor>
