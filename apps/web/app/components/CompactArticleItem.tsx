@@ -139,14 +139,13 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
         <Box
           px="xs"
           pb={8}
-          pt={0}
+          pt={8}
           style={{
             fontSize: 13,
             lineHeight: 1.6,
             color: 'var(--mantine-color-gray-7)',
             background: 'var(--mantine-color-gray-0)',
             borderRadius: 4,
-            margin: '6px 8px',
           }}
         >
           {summaryText}
