@@ -146,8 +146,7 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
             color: 'var(--mantine-color-gray-7)',
             background: 'var(--mantine-color-gray-0)',
             borderRadius: 4,
-            margin: '0 8px 6px',
-            padding: '8px 10px',
+            margin: '6px 8px',
           }}
         >
           {summaryText}
