@@ -96,13 +96,13 @@ function RootComponent() {
               >
                 <Container size="xl" style={{ display: 'flex', alignItems: 'center' }}>
                   <Group gap="xs">
-                    <img
+                    {/* <img
                       src="/logo.svg"
                       alt="摸鱼资讯"
                       width={40}
                       height={40}
                       style={{ borderRadius: 6, position: 'relative', right: -4 }}
-                    />
+                    /> */}
                     <Title order={3}>
                       <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
                         摸鱼资讯
