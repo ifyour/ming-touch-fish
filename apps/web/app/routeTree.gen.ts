@@ -10,9 +10,9 @@
 
 // Import Routes
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as FishImport } from './routes/fish'
-import { Route as IndexImport } from './routes/index'
+import { Route as rootRoute } from './routes/__root';
+import { Route as FishImport } from './routes/fish';
+import { Route as IndexImport } from './routes/index';
 
 // Create/Update Routes
 
@@ -20,75 +20,75 @@ const FishRoute = FishImport.update({
   id: '/fish',
   path: '/fish',
   getParentRoute: () => rootRoute,
-} as any)
+} as any);
 
 const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRoute,
-} as any)
+} as any);
 
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexImport
-      parentRoute: typeof rootRoute
-    }
+      id: '/';
+      path: '/';
+      fullPath: '/';
+      preLoaderRoute: typeof IndexImport;
+      parentRoute: typeof rootRoute;
+    };
     '/fish': {
-      id: '/fish'
-      path: '/fish'
-      fullPath: '/fish'
-      preLoaderRoute: typeof FishImport
-      parentRoute: typeof rootRoute
-    }
+      id: '/fish';
+      path: '/fish';
+      fullPath: '/fish';
+      preLoaderRoute: typeof FishImport;
+      parentRoute: typeof rootRoute;
+    };
   }
 }
 
 // Create and export the route tree
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/fish': typeof FishRoute
+  '/': typeof IndexRoute;
+  '/fish': typeof FishRoute;
 }
 
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/fish': typeof FishRoute
+  '/': typeof IndexRoute;
+  '/fish': typeof FishRoute;
 }
 
 export interface FileRoutesById {
-  __root__: typeof rootRoute
-  '/': typeof IndexRoute
-  '/fish': typeof FishRoute
+  __root__: typeof rootRoute;
+  '/': typeof IndexRoute;
+  '/fish': typeof FishRoute;
 }
 
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/fish'
-  fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/fish'
-  id: '__root__' | '/' | '/fish'
-  fileRoutesById: FileRoutesById
+  fileRoutesByFullPath: FileRoutesByFullPath;
+  fullPaths: '/' | '/fish';
+  fileRoutesByTo: FileRoutesByTo;
+  to: '/' | '/fish';
+  id: '__root__' | '/' | '/fish';
+  fileRoutesById: FileRoutesById;
 }
 
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  FishRoute: typeof FishRoute
+  IndexRoute: typeof IndexRoute;
+  FishRoute: typeof FishRoute;
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FishRoute: FishRoute,
-}
+};
 
 export const routeTree = rootRoute
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
 
 /* ROUTE_MANIFEST_START
 {

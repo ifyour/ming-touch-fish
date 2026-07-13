@@ -1,4 +1,4 @@
-import type { Source, Article } from '@repo/db';
+import type { Article, Source } from '@repo/db';
 
 export interface SourceWithLastFetchCount extends Source {
   lastFetchCount: number;

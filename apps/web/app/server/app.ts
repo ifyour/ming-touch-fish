@@ -1,11 +1,11 @@
+import { logger } from '@repo/telemetry';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
-import { logger } from '@repo/telemetry';
-import sourcesRoute from './routes/sources';
 import articlesRoute from './routes/articles';
 import faviconRoute from './routes/favicon';
+import sourcesRoute from './routes/sources';
 import type { Bindings } from './types';
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -21,7 +21,7 @@ app.use(
       }
       return '';
     },
-  })
+  }),
 );
 app.use('*', prettyJSON());
 

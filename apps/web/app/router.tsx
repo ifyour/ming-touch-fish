@@ -1,8 +1,8 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { dehydrate, hydrate } from '@tanstack/react-query';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
-import type { QueryClient } from '@tanstack/react-query';
-import { routeTree } from './routeTree.gen';
 import { queryClient as defaultQueryClient } from './queryClient';
+import { routeTree } from './routeTree.gen';
 
 export interface RouterContext {
   queryClient: QueryClient;

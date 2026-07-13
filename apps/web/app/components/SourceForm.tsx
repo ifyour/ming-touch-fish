@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { Button, Group, Select, Stack, Switch, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useDebouncedValue } from '@mantine/hooks';
 import type { Source, SourceInput } from '@repo/shared';
+import { useEffect, useState } from 'react';
 import { getApiUrl } from '../utils/apiUrl.js';
 
 interface SourceFormProps {
@@ -23,8 +23,7 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
     },
     validate: {
       name: (value) => (value.trim().length > 0 ? null : '名称不能为空'),
-      url: (value) =>
-        /^https?:\/\/.+/.test(value) ? null : '请输入有效的 HTTP/HTTPS URL',
+      url: (value) => (/^https?:\/\/.+/.test(value) ? null : '请输入有效的 HTTP/HTTPS URL'),
     },
   });
 
@@ -36,8 +35,14 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
   const isEditing = !!source;
 
   useEffect(() => {
-    if (!debouncedUrl) { setDetectStatus('idle'); return; }
-    if (isEditing && debouncedUrl === source.url) { setDetectStatus('idle'); return; }
+    if (!debouncedUrl) {
+      setDetectStatus('idle');
+      return;
+    }
+    if (isEditing && debouncedUrl === source.url) {
+      setDetectStatus('idle');
+      return;
+    }
 
     setDetectStatus('detecting');
 
@@ -48,7 +53,7 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: debouncedUrl }),
         });
-        const data = await res.json() as { feedUrl: string | null; sourceName?: string | null };
+        const data = (await res.json()) as { feedUrl: string | null; sourceName?: string | null };
         if (data.feedUrl) {
           setDetectedFeedUrl(data.feedUrl);
           form.setFieldValue('url', data.feedUrl);
@@ -66,10 +71,13 @@ export function SourceForm({ source, onSubmit, onCancel }: SourceFormProps) {
   }, [debouncedUrl]);
 
   const urlDescription =
-    detectStatus === 'detecting' ? '正在探测 RSS 源…' :
-    detectStatus === 'found' ? `已发现 RSS 源：${detectedFeedUrl}` :
-    detectStatus === 'not_found' ? '未探测到 RSS 源，可手动输入完整订阅地址' :
-    undefined;
+    detectStatus === 'detecting'
+      ? '正在探测 RSS 源…'
+      : detectStatus === 'found'
+        ? `已发现 RSS 源：${detectedFeedUrl}`
+        : detectStatus === 'not_found'
+          ? '未探测到 RSS 源，可手动输入完整订阅地址'
+          : undefined;
 
   const urlError = undefined;
 

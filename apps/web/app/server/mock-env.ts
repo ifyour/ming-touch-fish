@@ -15,11 +15,35 @@ class MockPreparedStatement {
   }
 
   async run<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    return { success: true, meta: { duration: 0, size_after: 0, rows_read: 0, rows_written: 0, last_row_id: 0, changed_db: false, changes: 0 }, results: [] };
+    return {
+      success: true,
+      meta: {
+        duration: 0,
+        size_after: 0,
+        rows_read: 0,
+        rows_written: 0,
+        last_row_id: 0,
+        changed_db: false,
+        changes: 0,
+      },
+      results: [],
+    };
   }
 
   async all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    return { success: true, meta: { duration: 0, size_after: 0, rows_read: 0, rows_written: 0, last_row_id: 0, changed_db: false, changes: 0 }, results: [] };
+    return {
+      success: true,
+      meta: {
+        duration: 0,
+        size_after: 0,
+        rows_read: 0,
+        rows_written: 0,
+        last_row_id: 0,
+        changed_db: false,
+        changes: 0,
+      },
+      results: [],
+    };
   }
 
   raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
@@ -51,8 +75,12 @@ class MockD1Database implements D1Database {
     return { count: 0, duration: 0 };
   }
 
-  withSession(): never { throw new Error('Not implemented'); }
-  dump(): Promise<ArrayBuffer> { throw new Error('Not implemented'); }
+  withSession(): never {
+    throw new Error('Not implemented');
+  }
+  dump(): Promise<ArrayBuffer> {
+    throw new Error('Not implemented');
+  }
 }
 
 export function createMockEnv(): Bindings {

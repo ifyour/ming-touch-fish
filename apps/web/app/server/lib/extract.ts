@@ -1,13 +1,10 @@
+import { Readability } from '@mozilla/readability';
 import { fetchWithUA } from '@repo/shared';
 import { parseHTML } from 'linkedom';
-import { Readability } from '@mozilla/readability';
 
 const MAX_CHARS = 8000;
 
-export function extractFromHtml(
-  html: string,
-  opts: { allowStripFallback?: boolean } = {}
-): string {
+export function extractFromHtml(html: string, opts: { allowStripFallback?: boolean } = {}): string {
   const allowStripFallback = opts.allowStripFallback ?? true;
   // 优先用 Readability（全文 HTML 效果最好）
   try {

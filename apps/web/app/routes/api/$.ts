@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
+import { logger } from '@repo/telemetry';
 import { createAPIFileRoute } from '@tanstack/react-start/api';
 import { getEvent } from '@tanstack/react-start/server';
-import { logger } from '@repo/telemetry';
 import honoApp from '../../server/app';
 import { createMockEnv } from '../../server/mock-env';
 import type { Bindings } from '../../server/types';
@@ -23,7 +23,10 @@ async function getDevBindings(): Promise<Bindings> {
     devBindings = proxy.bindings as unknown as Bindings;
     return devBindings;
   } catch (err) {
-    logger.error('getDevBindings failed, falling back to mock env', { service: 'web-api', error: err });
+    logger.error('getDevBindings failed, falling back to mock env', {
+      service: 'web-api',
+      error: err,
+    });
     return createMockEnv();
   }
 }

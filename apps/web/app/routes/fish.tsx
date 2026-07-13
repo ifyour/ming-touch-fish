@@ -1,59 +1,55 @@
-import { useState, useCallback, useEffect, useRef } from "react";
 import {
-  createFileRoute,
-  useNavigate,
-  useSearch,
-} from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Card,
-  Group,
-  LoadingOverlay,
-  Modal,
-  Stack,
-  Table,
-  Title,
-  Text,
-  Badge,
-  Switch,
-  NavLink,
-  ScrollArea,
-  ActionIcon,
-  Tooltip,
-  Checkbox,
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
-import {
-  IconPlus,
-  IconRefresh,
-  IconTrash,
-  IconEdit,
-  IconRss,
-  IconGripVertical,
-} from "@tabler/icons-react";
-import {
-  DndContext,
   closestCenter,
+  DndContext,
+  type DragEndEvent,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
+  arrayMove,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import type { Source, SourceInput } from "@repo/shared";
-import type { SourceWithLastFetchCount } from "../types/api";
-import { formatRelativeTime } from "@repo/shared";
-import { SourceForm } from "../components/SourceForm.js";
-import { getApiUrl } from "../utils/apiUrl.js";
-import { z } from "zod";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Group,
+  LoadingOverlay,
+  Modal,
+  NavLink,
+  ScrollArea,
+  Stack,
+  Switch,
+  Table,
+  Text,
+  Title,
+  Tooltip,
+} from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
+import type { Source, SourceInput } from '@repo/shared';
+import { formatRelativeTime } from '@repo/shared';
+import {
+  IconEdit,
+  IconGripVertical,
+  IconPlus,
+  IconRefresh,
+  IconRss,
+  IconTrash,
+} from '@tabler/icons-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { z } from 'zod';
+import { SourceForm } from '../components/SourceForm.js';
+import type { SourceWithLastFetchCount } from '../types/api';
+import { getApiUrl } from '../utils/apiUrl.js';
 
 function usePollingAfterFetch(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -64,12 +60,12 @@ function usePollingAfterFetch(
   const snapshotRef = useRef<Map<number, string>>(new Map());
 
   const toKey = (v: Date | string | null | undefined) =>
-    v instanceof Date ? v.toISOString() : (v ?? "");
+    v instanceof Date ? v.toISOString() : (v ?? '');
 
   const startPolling = useCallback(
     (sourceIds?: number[]) => {
       // Fetch fresh data from query cache to avoid stale closure
-      const currentSources = queryClient.getQueryData<SourceWithLastFetchCount[]>(["sources"]);
+      const currentSources = queryClient.getQueryData<SourceWithLastFetchCount[]>(['sources']);
       if (!currentSources) return;
       const snapshot = new Map<number, string>();
       const targets = sourceIds ?? currentSources.map((s) => s.id);
@@ -92,13 +88,15 @@ function usePollingAfterFetch(
     const interval = setInterval(async () => {
       attempts++;
       // 主动 refetch 获取最新数据
-      const freshSources = await queryClient.refetchQueries({
-        queryKey: ["sources"],
-        type: "active",
-      }).then(() => queryClient.getQueryData<SourceWithLastFetchCount[]>(["sources"]));
-      
+      const freshSources = await queryClient
+        .refetchQueries({
+          queryKey: ['sources'],
+          type: 'active',
+        })
+        .then(() => queryClient.getQueryData<SourceWithLastFetchCount[]>(['sources']));
+
       if (!freshSources) return;
-      
+
       for (const s of freshSources) {
         const prev = snapshotRef.current.get(s.id);
         if (prev !== undefined && toKey(s.lastFetchedAt) !== prev) {
@@ -110,7 +108,7 @@ function usePollingAfterFetch(
       if (snapshotRef.current.size === 0 || attempts >= maxAttempts) {
         clearInterval(interval);
         setPolling(false);
-        queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
+        queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
       }
     }, 1500);
 
@@ -120,20 +118,18 @@ function usePollingAfterFetch(
   return { startPolling };
 }
 
-const adminTabs = [
-  { value: "sources", label: "资讯源管理", icon: IconRss },
-] as const;
+const adminTabs = [{ value: 'sources', label: '资讯源管理', icon: IconRss }] as const;
 
-const adminTabSchema = z.enum(["sources"]).default("sources");
+const adminTabSchema = z.enum(['sources']).default('sources');
 
-export const Route = createFileRoute("/fish")({
+export const Route = createFileRoute('/fish')({
   component: AdminPage,
   validateSearch: z.object({ tab: adminTabSchema }),
   loaderDeps: ({ search: { tab } }) => ({ tab }),
   loader: async ({ context, deps }) => {
-    if (deps.tab === "sources") {
+    if (deps.tab === 'sources') {
       return context.queryClient.ensureQueryData({
-        queryKey: ["sources"],
+        queryKey: ['sources'],
         queryFn: fetchSources,
       });
     }
@@ -141,8 +137,8 @@ export const Route = createFileRoute("/fish")({
 });
 
 async function fetchSources(): Promise<SourceWithLastFetchCount[]> {
-  const response = await fetch(await getApiUrl("/api/sources"));
-  if (!response.ok) throw new Error("Failed to load sources");
+  const response = await fetch(await getApiUrl('/api/sources'));
+  if (!response.ok) throw new Error('Failed to load sources');
   return response.json();
 }
 
@@ -167,14 +163,9 @@ function SortableRow({
   onDelete,
   onToggleActive,
 }: SortableRowProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: source.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: source.id,
+  });
 
   const style = {
     transform: isDragging ? CSS.Transform.toString(transform) : undefined,
@@ -184,7 +175,11 @@ function SortableRow({
   };
 
   return (
-    <Table.Tr ref={setNodeRef} style={style} bg={isSelected ? "var(--mantine-color-blue-0)" : undefined}>
+    <Table.Tr
+      ref={setNodeRef}
+      style={style}
+      bg={isSelected ? 'var(--mantine-color-blue-0)' : undefined}
+    >
       <Table.Td w={36}>
         <Checkbox
           aria-label={`选择 ${source.name}`}
@@ -197,7 +192,7 @@ function SortableRow({
           variant="subtle"
           color="gray"
           size="sm"
-          style={{ cursor: "grab" }}
+          style={{ cursor: 'grab' }}
           {...attributes}
           {...listeners}
         >
@@ -219,25 +214,21 @@ function SortableRow({
         <Badge variant="light">
           {(
             {
-              hourly: "每小时",
-              twice_daily: "每 12 小时",
-              daily: "每天",
+              hourly: '每小时',
+              twice_daily: '每 12 小时',
+              daily: '每天',
             } as Record<string, string>
           )[source.fetchFrequency] ?? source.fetchFrequency}
         </Badge>
       </Table.Td>
       <Table.Td>
-        <Switch
-          size="xs"
-          checked={source.isActive}
-          onChange={onToggleActive}
-        />
+        <Switch size="xs" checked={source.isActive} onChange={onToggleActive} />
       </Table.Td>
       <Table.Td>
         <Text size="xs" c="dimmed">
           {source.lastFetchedAt
             ? `${formatRelativeTime(source.lastFetchedAt)}更新了 ${source.lastFetchCount} 条`
-            : "从未"}
+            : '从未'}
         </Text>
       </Table.Td>
       <Table.Td>
@@ -249,11 +240,7 @@ function SortableRow({
             leftSection={
               <IconRefresh
                 size={14}
-                style={
-                  isFetching
-                    ? { animation: "spin 1s linear infinite" }
-                    : undefined
-                }
+                style={isFetching ? { animation: 'spin 1s linear infinite' } : undefined}
               />
             }
             onClick={onFetch}
@@ -284,22 +271,18 @@ function SortableRow({
 }
 
 function AdminPage() {
-  const { tab } = useSearch({ from: "/fish" });
+  const { tab } = useSearch({ from: '/fish' });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
-  const [editingSource, setEditingSource] = useState<Source | undefined>(
-    undefined,
-  );
-  const [deletingSource, setDeletingSource] = useState<Source | undefined>(
-    undefined,
-  );
+  const [editingSource, setEditingSource] = useState<Source | undefined>(undefined);
+  const [deletingSource, setDeletingSource] = useState<Source | undefined>(undefined);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [deletingBatch, setDeletingBatch] = useState(false);
   const [fetchingIds, setFetchingIds] = useState<Set<number>>(new Set());
 
   const { data: sources, isLoading } = useQuery({
-    queryKey: ["sources"],
+    queryKey: ['sources'],
     queryFn: fetchSources,
     staleTime: 5 * 60 * 1000,
   });
@@ -311,9 +294,7 @@ function AdminPage() {
       return next;
     });
     setSortedSources((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, lastFetchedAt: newLastFetchedAt } : s
-      )
+      prev.map((s) => (s.id === id ? { ...s, lastFetchedAt: newLastFetchedAt } : s)),
     );
   }, []);
 
@@ -333,109 +314,109 @@ function AdminPage() {
 
   const createMutation = useMutation({
     mutationFn: async (values: SourceInput): Promise<Source> => {
-      const res = await fetch(await getApiUrl("/api/sources"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch(await getApiUrl('/api/sources'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
       if (!res.ok) {
-        const err = (await res
-          .json()
-          .catch(() => ({ error: "Request failed" }))) as { error?: string };
+        const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as {
+          error?: string;
+        };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       return res.json() as Promise<Source>;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
       closeForm();
       notifications.show({
-        title: "成功",
-        message: "资讯源已添加",
-        color: "green",
+        title: '成功',
+        message: '资讯源已添加',
+        color: 'green',
       });
       fetchMutation.mutate(data.id);
     },
     onError: (err: Error) => {
-      notifications.show({ title: "失败", message: err.message, color: "red" });
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, values }: { id: number; values: SourceInput }) => {
       const res = await fetch(await getApiUrl(`/api/sources/${id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
       if (!res.ok) {
-        const err = (await res
-          .json()
-          .catch(() => ({ error: "Request failed" }))) as { error?: string };
+        const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as {
+          error?: string;
+        };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
       closeForm();
       notifications.show({
-        title: "成功",
-        message: "资讯源已更新",
-        color: "green",
+        title: '成功',
+        message: '资讯源已更新',
+        color: 'green',
       });
     },
     onError: (err: Error) => {
-      notifications.show({ title: "失败", message: err.message, color: "red" });
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(await getApiUrl(`/api/sources/${id}`), {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (!res.ok) {
-        const err = (await res
-          .json()
-          .catch(() => ({ error: "Request failed" }))) as { error?: string };
+        const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as {
+          error?: string;
+        };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
       notifications.show({
-        title: "成功",
-        message: "资讯源已删除",
-        color: "green",
+        title: '成功',
+        message: '资讯源已删除',
+        color: 'green',
       });
     },
     onError: (err: Error) => {
-      notifications.show({ title: "失败", message: err.message, color: "red" });
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
 
   const updatePriorityBatch = useMutation({
     mutationFn: async (updates: Array<{ id: number; priority: number }>) => {
-      const apiUrl = await getApiUrl("/api/sources/");
+      const apiUrl = await getApiUrl('/api/sources/');
       await Promise.all(
         updates.map(async ({ id, priority }) => {
           const res = await fetch(`${apiUrl}${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ priority }),
           });
-          if (!res.ok) throw new Error("Failed to update priority");
+          if (!res.ok) throw new Error('Failed to update priority');
         }),
       );
     },
     onError: (err: Error) => {
       setSortedSources(prevSources.current ?? []);
       notifications.show({
-        title: "排序失败",
+        title: '排序失败',
         message: err.message,
-        color: "red",
+        color: 'red',
       });
     },
   });
@@ -448,24 +429,24 @@ function AdminPage() {
         body.priority = minPriority - 1;
       }
       const res = await fetch(await getApiUrl(`/api/sources/${id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Failed to toggle status");
+      if (!res.ok) throw new Error('Failed to toggle status');
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
     },
     onError: (err: Error) => {
-      notifications.show({ title: "失败", message: err.message, color: "red" });
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
 
   const batchToggleActiveMutation = useMutation({
     mutationFn: async ({ ids, isActive }: { ids: number[]; isActive: boolean }) => {
-      const apiUrl = await getApiUrl("/api/sources/");
+      const apiUrl = await getApiUrl('/api/sources/');
       let nextPriority = sources
         ? sources.reduce((min, s) => Math.min(min, s.priority), Infinity) - 1
         : 0;
@@ -476,57 +457,55 @@ function AdminPage() {
             body.priority = nextPriority--;
           }
           const res = await fetch(`${apiUrl}${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           });
-          if (!res.ok) throw new Error("Failed to update status");
+          if (!res.ok) throw new Error('Failed to update status');
         }),
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
       notifications.show({
-        title: "成功",
-        message: "已批量更新启用状态",
-        color: "green",
+        title: '成功',
+        message: '已批量更新启用状态',
+        color: 'green',
       });
       setSelectedIds(new Set());
     },
     onError: (err: Error) => {
-      notifications.show({ title: "失败", message: err.message, color: "red" });
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
 
   const batchDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
-      const apiUrl = await getApiUrl("/api/sources/");
+      const apiUrl = await getApiUrl('/api/sources/');
       await Promise.all(
         ids.map(async (id) => {
-          const res = await fetch(`${apiUrl}${id}`, { method: "DELETE" });
-          if (!res.ok) throw new Error("Failed to delete source");
+          const res = await fetch(`${apiUrl}${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Failed to delete source');
         }),
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
-      queryClient.invalidateQueries({ queryKey: ["articles", "grouped"] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
       notifications.show({
-        title: "成功",
-        message: "已批量删除选中资讯源",
-        color: "green",
+        title: '成功',
+        message: '已批量删除选中资讯源',
+        color: 'green',
       });
       setSelectedIds(new Set());
       setDeletingBatch(false);
     },
     onError: (err: Error) => {
-      notifications.show({ title: "失败", message: err.message, color: "red" });
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -558,8 +537,7 @@ function AdminPage() {
     });
   }, []);
 
-  const allSelected =
-    sortedSources.length > 0 && sortedSources.every((s) => selectedIds.has(s.id));
+  const allSelected = sortedSources.length > 0 && sortedSources.every((s) => selectedIds.has(s.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
   const selectedCount = selectedIds.size;
 
@@ -576,12 +554,12 @@ function AdminPage() {
   const fetchMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(await getApiUrl(`/api/sources/${id}/fetch`), {
-        method: "POST",
+        method: 'POST',
       });
       if (!res.ok) {
-        const err = (await res
-          .json()
-          .catch(() => ({ error: "Request failed" }))) as { error?: string };
+        const err = (await res.json().catch(() => ({ error: 'Request failed' }))) as {
+          error?: string;
+        };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       return res.json() as Promise<{ success: boolean; queued: boolean }>;
@@ -590,7 +568,7 @@ function AdminPage() {
       setFetchingIds((prev) => new Set(prev).add(id));
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
       startPolling([variables]);
     },
     onError: (err: Error, id) => {
@@ -599,16 +577,16 @@ function AdminPage() {
         next.delete(id);
         return next;
       });
-      notifications.show({ title: "失败", message: err.message, color: "red" });
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
 
   const fetchAllMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(await getApiUrl("/api/sources/fetch-all"), {
-        method: "POST",
+      const res = await fetch(await getApiUrl('/api/sources/fetch-all'), {
+        method: 'POST',
       });
-      if (!res.ok) throw new Error("一键刷新失败");
+      if (!res.ok) throw new Error('一键刷新失败');
       return res.json() as Promise<{ success: boolean; queued?: number; fetched?: number }>;
     },
     onMutate: () => {
@@ -618,18 +596,18 @@ function AdminPage() {
       }
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
       const count = data.queued ?? data.fetched ?? 0;
       notifications.show({
-        title: "已加入更新队列",
+        title: '已加入更新队列',
         message: `已排队 ${count} 个源，后台正在抓取，稍后自动刷新`,
-        color: "blue",
+        color: 'blue',
       });
       startPolling();
     },
     onError: (err: Error) => {
       setFetchingIds(new Set());
-      notifications.show({ title: "失败", message: err.message, color: "red" });
+      notifications.show({ title: '失败', message: err.message, color: 'red' });
     },
   });
 
@@ -661,19 +639,15 @@ function AdminPage() {
   return (
     <>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-      <Group
-        align="flex-start"
-        gap={0}
-        style={{ minHeight: "calc(100vh - 80px)" }}
-      >
+      <Group align="flex-start" gap={0} style={{ minHeight: 'calc(100vh - 80px)' }}>
         <Stack
           w={160}
           gap={0}
           py="md"
           style={{
-            borderRight: "1px solid var(--mantine-color-gray-2)",
+            borderRight: '1px solid var(--mantine-color-gray-2)',
             flexShrink: 0,
-            alignSelf: "stretch",
+            alignSelf: 'stretch',
           }}
         >
           {adminTabs.map((item) => (
@@ -682,18 +656,16 @@ function AdminPage() {
               label={item.label}
               leftSection={<item.icon size={18} />}
               active={tab === item.value}
-              onClick={() =>
-                navigate({ to: "/fish", search: { tab: item.value } })
-              }
+              onClick={() => navigate({ to: '/fish', search: { tab: item.value } })}
               variant="light"
               style={{ borderRadius: 0 }}
             />
           ))}
         </Stack>
 
-        <ScrollArea style={{ flex: 1, alignSelf: "stretch" }}>
+        <ScrollArea style={{ flex: 1, alignSelf: 'stretch' }}>
           <Stack gap="md" p="md">
-            {tab === "sources" && (
+            {tab === 'sources' && (
               <>
                 <Group justify="space-between" align="center">
                   {selectedCount > 0 ? (
@@ -754,11 +726,7 @@ function AdminPage() {
                     >
                       更新全部
                     </Button>
-                    <Button
-                      leftSection={<IconPlus size={16} />}
-                      onClick={openCreate}
-                      size="xs"
-                    >
+                    <Button leftSection={<IconPlus size={16} />} onClick={openCreate} size="xs">
                       添加资讯源
                     </Button>
                   </Group>
@@ -825,14 +793,10 @@ function AdminPage() {
                 <Modal
                   opened={opened}
                   onClose={closeForm}
-                  title={editingSource ? "编辑资讯源" : "添加资讯源"}
+                  title={editingSource ? '编辑资讯源' : '添加资讯源'}
                   centered
                 >
-                  <SourceForm
-                    source={editingSource}
-                    onSubmit={handleSubmit}
-                    onCancel={closeForm}
-                  />
+                  <SourceForm source={editingSource} onSubmit={handleSubmit} onCancel={closeForm} />
                 </Modal>
 
                 <Modal
@@ -846,18 +810,14 @@ function AdminPage() {
                     确定要删除「{deletingSource?.name}」吗？该操作不可撤销。
                   </Text>
                   <Group justify="flex-end" gap="sm">
-                    <Button
-                      variant="default"
-                      onClick={() => setDeletingSource(undefined)}
-                    >
+                    <Button variant="default" onClick={() => setDeletingSource(undefined)}>
                       取消
                     </Button>
                     <Button
                       color="red"
                       loading={deleteMutation.isPending}
                       onClick={() => {
-                        if (deletingSource)
-                          deleteMutation.mutate(deletingSource.id);
+                        if (deletingSource) deleteMutation.mutate(deletingSource.id);
                         setDeletingSource(undefined);
                       }}
                     >
@@ -874,21 +834,17 @@ function AdminPage() {
                   centered
                 >
                   <Text size="sm" mb="lg">
-                    确定要删除选中的 {selectedCount} 个资讯源吗？相关文章将一并删除，该操作不可撤销。
+                    确定要删除选中的 {selectedCount}{' '}
+                    个资讯源吗？相关文章将一并删除，该操作不可撤销。
                   </Text>
                   <Group justify="flex-end" gap="sm">
-                    <Button
-                      variant="default"
-                      onClick={() => setDeletingBatch(false)}
-                    >
+                    <Button variant="default" onClick={() => setDeletingBatch(false)}>
                       取消
                     </Button>
                     <Button
                       color="red"
                       loading={batchDeleteMutation.isPending}
-                      onClick={() =>
-                        batchDeleteMutation.mutate(Array.from(selectedIds))
-                      }
+                      onClick={() => batchDeleteMutation.mutate(Array.from(selectedIds))}
                     >
                       删除
                     </Button>

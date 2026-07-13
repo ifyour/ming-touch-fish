@@ -1,6 +1,6 @@
 import type { FeedData } from '@extractus/feed-extractor';
-import { logger } from '@repo/telemetry';
 import { BROWSER_UA } from '@repo/shared';
+import { logger } from '@repo/telemetry';
 import { scrapePage } from './firecrawl.js';
 
 const V2EX_FIRECRAWL_URL = 'https://v2ex.com/?';
@@ -22,23 +22,26 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
-function parseV2exHotTopics(html: string): EntryList {
+export function parseV2exHotTopics(html: string): EntryList {
   const hotMatch = html.match(
     /<div\s+class="box"\s+id="TopicsHot">([\s\S]*?)(?=<div\s+class="box"[^>]*>|$)/,
   );
   if (!hotMatch) {
-    logger.warn('V2EX hot topics section (#TopicsHot) not found in scraped HTML', { service: 'fetcher' });
+    logger.warn('V2EX hot topics section (#TopicsHot) not found in scraped HTML', {
+      service: 'fetcher',
+    });
     return [];
   }
 
   const hotHtml = hotMatch[1];
   const entries: FeedEntry[] = [];
   // Firecrawl converts relative links to absolute; direct fetch keeps them relative
-  const itemRegex = /item_hot_topic_title">\s*<a\s+href="(?:https?:\/\/v2ex\.com)?(\/t\/(\d+))"[^>]*>([\s\S]*?)<\/a>/g;
-  let match: RegExpExecArray | null;
+  const itemRegex =
+    /item_hot_topic_title">\s*<a\s+href="(?:https?:\/\/v2ex\.com)?(\/t\/(\d+))"[^>]*>([\s\S]*?)<\/a>/g;
+  let match = itemRegex.exec(hotHtml);
   const now = Date.now();
 
-  while ((match = itemRegex.exec(hotHtml)) !== null) {
+  while (match !== null) {
     const title = decodeHtmlEntities(match[3].trim());
     if (!title) continue;
     entries.push({
@@ -47,12 +50,13 @@ function parseV2exHotTopics(html: string): EntryList {
       link: `https://v2ex.com${match[1]}`,
       published: new Date(now - entries.length * 1000).toISOString(),
     });
+    match = itemRegex.exec(hotHtml);
   }
 
   return entries;
 }
 
-function isRssXml(body: string): boolean {
+export function isRssXml(body: string): boolean {
   return /^<\?xml|^<rss|^<feed|xmlns=/.test(body.trim().slice(0, 200));
 }
 

@@ -1,9 +1,9 @@
-import { Stack, Title, Text, Card, ActionIcon, Tooltip, Anchor, Center } from '@mantine/core';
-import type { ArticleGroupedBySource } from '../types/api';
+import { ActionIcon, Anchor, Card, Center, Stack, Text, Title, Tooltip } from '@mantine/core';
 import { getSourceHomepage } from '@repo/shared';
-import { CompactArticleItem } from './CompactArticleItem.js';
 import { IconCheck } from '@tabler/icons-react';
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ArticleGroupedBySource } from '../types/api';
+import { CompactArticleItem } from './CompactArticleItem.js';
 
 interface SourceSectionProps {
   group: ArticleGroupedBySource;
@@ -45,8 +45,11 @@ export function SourceSection({ group }: SourceSectionProps) {
   const [readArticleIds, setReadArticleIds] = useState<Set<number>>(getReadArticleIds);
 
   const hasMore = articles.length > INITIAL_COUNT;
-  const displayArticles = expanded ? articles.slice(0, MAX_COUNT) : articles.slice(0, INITIAL_COUNT);
-  const allRead = displayArticles.length > 0 && displayArticles.every((a) => readArticleIds.has(a.id));
+  const displayArticles = expanded
+    ? articles.slice(0, MAX_COUNT)
+    : articles.slice(0, INITIAL_COUNT);
+  const allRead =
+    displayArticles.length > 0 && displayArticles.every((a) => readArticleIds.has(a.id));
   const cardRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const [lockedCardHeight, setLockedCardHeight] = useState<number | null>(null);
@@ -62,7 +65,7 @@ export function SourceSection({ group }: SourceSectionProps) {
       ([entry]) => {
         if (!entry.isIntersecting) setExpanded(false);
       },
-      { threshold: 0 }
+      { threshold: 0 },
     );
     observer.observe(header);
     return () => observer.disconnect();
@@ -97,7 +100,18 @@ export function SourceSection({ group }: SourceSectionProps) {
   const faviconSrc = `/api/favicon?url=${encodeURIComponent(getSourceHomepage(source.url))}`;
 
   return (
-    <Card ref={cardRef} withBorder radius="md" padding={0} style={lockedCardHeight ? { height: lockedCardHeight, display: 'flex', flexDirection: 'column' } : undefined} onMouseLeave={() => expanded && setExpanded(false)}>
+    <Card
+      ref={cardRef}
+      withBorder
+      radius="md"
+      padding={0}
+      style={
+        lockedCardHeight
+          ? { height: lockedCardHeight, display: 'flex', flexDirection: 'column' }
+          : undefined
+      }
+      onMouseLeave={() => expanded && setExpanded(false)}
+    >
       <Card.Section ref={headerRef} withBorder inheritPadding py="sm" px="md">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title order={5} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -113,12 +127,23 @@ export function SourceSection({ group }: SourceSectionProps) {
                 e.currentTarget.style.display = 'none';
               }}
             />
-            <Anchor href={getSourceHomepage(source.url)} target="_blank" rel="noopener noreferrer" underline="never" c="inherit">
+            <Anchor
+              href={getSourceHomepage(source.url)}
+              target="_blank"
+              rel="noopener noreferrer"
+              underline="never"
+              c="inherit"
+            >
               {source.name}
             </Anchor>
           </Title>
           <Tooltip label="标记已读" position="top" withArrow>
-            <ActionIcon variant="subtle" color={allRead ? 'teal' : 'gray'} size="sm" onClick={handleMarkRead}>
+            <ActionIcon
+              variant="subtle"
+              color={allRead ? 'teal' : 'gray'}
+              size="sm"
+              onClick={handleMarkRead}
+            >
               <IconCheck size={14} />
             </ActionIcon>
           </Tooltip>
@@ -131,12 +156,21 @@ export function SourceSection({ group }: SourceSectionProps) {
       ) : (
         <Stack gap={0} style={expanded ? { flex: 1, overflowY: 'auto', minHeight: 0 } : undefined}>
           {displayArticles.map((article) => (
-            <CompactArticleItem key={article.id} article={article} read={readArticleIds.has(article.id)} onRead={handleReadArticle} />
+            <CompactArticleItem
+              key={article.id}
+              article={article}
+              read={readArticleIds.has(article.id)}
+              onRead={handleReadArticle}
+            />
           ))}
         </Stack>
       )}
       {hasMore && !expanded && (
-        <Card.Section withBorder style={{ borderTop: 'none', cursor: 'pointer'}} onClick={handleShowMore}>
+        <Card.Section
+          withBorder
+          style={{ borderTop: 'none', cursor: 'pointer' }}
+          onClick={handleShowMore}
+        >
           <Center py={4}>
             <Anchor component="button" size="xs" c="dimmed">
               Show more

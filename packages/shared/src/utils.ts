@@ -44,7 +44,7 @@ function toDate(v: Date | string | null | undefined): Date | null {
 
 export function shouldFetchNow(
   frequency: 'hourly' | 'twice_daily' | 'daily',
-  lastFetchedAt: Date | string | null | undefined
+  lastFetchedAt: Date | string | null | undefined,
 ): boolean {
   const d = toDate(lastFetchedAt);
   if (!d) return true;
@@ -68,7 +68,7 @@ export function shouldFetchNow(
 export function isCloudflareQuotaError(err: unknown): string | null {
   if (!(err instanceof Error)) return null;
   const msg = err.message;
-  const code = (err as any)?.code;
+  const code = (err as { code?: number })?.code;
 
   if (code === 1101 || /cpu time/i.test(msg)) {
     return 'Cloudflare Workers CPU time quota exceeded (free tier: 10ms). Some articles were processed before timeout. Try reducing fetch frequency or upgrading your plan.';
@@ -102,7 +102,7 @@ const STALE_THRESHOLD_MS = STALE_GROUP_DAYS * 24 * 60 * 60 * 1000;
  * 供服务端（按源聚合最新发布时间）与前端共用，保证判定口径一致。
  */
 export function isStaleByNewestPublishedAt(
-  newest: Date | string | number | null | undefined
+  newest: Date | string | number | null | undefined,
 ): boolean {
   const ms = newest ? new Date(newest).getTime() : NaN;
   if (!Number.isFinite(ms)) return true;
@@ -113,9 +113,9 @@ export function isStaleByNewestPublishedAt(
  * 判定一个资讯源是否应被收起：最新文章 publishedAt 距今超过 STALE_GROUP_DAYS 天（或无文章）即视为过期。
  * 用于首页「加载更多」折叠区块。
  */
-export function isStaleGroup(
-  group: { articles: { publishedAt: Date | string | null | undefined }[] }
-): boolean {
+export function isStaleGroup(group: {
+  articles: { publishedAt: Date | string | null | undefined }[];
+}): boolean {
   if (group.articles.length === 0) return true;
   const newest = group.articles.reduce((max, a) => {
     const d = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;

@@ -1,10 +1,20 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
-import { SimpleGrid, Alert, Container, Text, Loader, Center, Collapse, Anchor, Stack } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Center,
+  Collapse,
+  Container,
+  Loader,
+  SimpleGrid,
+  Stack,
+  Text,
+} from '@mantine/core';
 import { IconAlertCircle, IconChevronDown } from '@tabler/icons-react';
+import { useQuery } from '@tanstack/react-query';
+import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import type { ArticleGroupedBySource } from '../types/api';
 import { SourceSection } from '../components/SourceSection.js';
+import type { ArticleGroupedBySource } from '../types/api';
 import { getApiUrl } from '../utils/apiUrl.js';
 
 export const Route = createFileRoute('/')({
@@ -35,7 +45,11 @@ async function fetchGroupedArticles(scope: 'active' | 'stale'): Promise<GroupedR
 }
 
 function HomePage() {
-  const { data: active, error, isLoading } = useQuery({
+  const {
+    data: active,
+    error,
+    isLoading,
+  } = useQuery({
     queryKey: ['articles', 'grouped', 'active'],
     queryFn: () => fetchGroupedArticles('active'),
     staleTime: 5 * 60 * 1000,
@@ -92,14 +106,28 @@ function HomePage() {
         <Alert>暂无资讯，请先添加资讯源并运行抓取。</Alert>
       ) : (
         <>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md" style={{ alignItems: 'start' }}>
-            {activeGroups.map((group) => <SourceSection key={group.source.id} group={group} />)}
+          <SimpleGrid
+            cols={{ base: 1, sm: 2, lg: 3 }}
+            spacing="md"
+            verticalSpacing="md"
+            style={{ alignItems: 'start' }}
+          >
+            {activeGroups.map((group) => (
+              <SourceSection key={group.source.id} group={group} />
+            ))}
           </SimpleGrid>
           {showStale && staleGroups && (
             <Stack gap="sm" mt="md">
               <Collapse in={showStale}>
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md" style={{ alignItems: 'start' }}>
-                  {staleGroups.map((group) => <SourceSection key={group.source.id} group={group} />)}
+                <SimpleGrid
+                  cols={{ base: 1, sm: 2, lg: 3 }}
+                  spacing="md"
+                  verticalSpacing="md"
+                  style={{ alignItems: 'start' }}
+                >
+                  {staleGroups.map((group) => (
+                    <SourceSection key={group.source.id} group={group} />
+                  ))}
                 </SimpleGrid>
               </Collapse>
             </Stack>
@@ -122,7 +150,13 @@ function HomePage() {
                 ) : (
                   <>
                     <span>{showStale ? '收起' : '加载更多'}</span>
-                    <IconChevronDown size={14} style={{ transform: showStale ? 'rotate(180deg)' : undefined, transition: 'transform 150ms ease' }} />
+                    <IconChevronDown
+                      size={14}
+                      style={{
+                        transform: showStale ? 'rotate(180deg)' : undefined,
+                        transition: 'transform 150ms ease',
+                      }}
+                    />
                   </>
                 )}
               </Anchor>

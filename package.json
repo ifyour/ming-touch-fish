@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Personal news aggregator.",
   "scripts": {
+    "prepare": "husky",
     "cleanup": "pkill -f 'workerd.*ming-touch-fish' 2>/dev/null; pkill -f 'esbuild.*ming-touch-fish' 2>/dev/null; echo 'done'",
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -15,12 +16,22 @@
     "deploy:web": "turbo run deploy --filter=@repo/web",
     "deploy:fetcher": "turbo run deploy --filter=@repo/fetcher",
     "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint"
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.mts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250100.0",
+    "@biomejs/biome": "^2.5.3",
+    "@cloudflare/vitest-pool-workers": "^0.18.4",
+    "@cloudflare/workers-types": "^5.20260713.1",
+    "husky": "^9.1.7",
     "turbo": "^2.4.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10",
+    "workerd": "^1.20260713.1"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {

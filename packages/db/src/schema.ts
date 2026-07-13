@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const sources = sqliteTable(
   'sources',
@@ -21,7 +21,7 @@ export const sources = sqliteTable(
   },
   (table) => ({
     priorityIdx: index('sources_priority_idx').on(table.priority),
-  })
+  }),
 );
 
 export const articles = sqliteTable(
@@ -43,8 +43,11 @@ export const articles = sqliteTable(
   },
   (table) => ({
     sourceUrlIdx: uniqueIndex('articles_source_url_idx').on(table.sourceId, table.url),
-    sourcePublishedIdx: index('articles_source_published_idx').on(table.sourceId, table.publishedAt),
-  })
+    sourcePublishedIdx: index('articles_source_published_idx').on(
+      table.sourceId,
+      table.publishedAt,
+    ),
+  }),
 );
 
 export type Source = typeof sources.$inferSelect;

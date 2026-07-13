@@ -1,14 +1,23 @@
+import {
+  Box,
+  Button,
+  ColorSchemeScript,
+  Container,
+  createTheme,
+  Group,
+  MantineProvider,
+  Text,
+  Title,
+} from '@mantine/core';
+import mantineCoreCss from '@mantine/core/styles.css?inline';
+import { Notifications } from '@mantine/notifications';
+import mantineNotificationsCss from '@mantine/notifications/styles.css?inline';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { Scripts } from '@tanstack/react-start';
-import { Container, Title, Text, Group, Button, Box, ColorSchemeScript } from '@mantine/core';
+import { useCallback, useRef } from 'react';
 import { Footer } from '../components/Footer';
-import { useRef, useCallback } from 'react';
-import { MantineProvider, createTheme } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
-import { QueryClientProvider } from '@tanstack/react-query';
 import type { RouterContext } from '../router';
-import mantineCoreCss from '@mantine/core/styles.css?inline';
-import mantineNotificationsCss from '@mantine/notifications/styles.css?inline';
 
 const theme = createTheme({
   primaryColor: 'blue',
@@ -78,39 +87,42 @@ function RootComponent() {
       <body>
         <div id="root">
           <QueryClientProvider client={queryClient}>
-              <MantineProvider theme={theme} forceColorScheme="light">
-                <Notifications position="top-right" />
-                <Box
-                  component="header"
-                  py="sm"
-                  style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
-                >
-                  <Container
-                    size="xl"
-                    style={{ display: 'flex', alignItems: 'center' }}
-                  >
-                    <Group gap="xs">
-                      <img src="/logo.svg" alt="摸鱼资讯" width={40} height={40} style={{ borderRadius: 6, position: 'relative', right: -4}} />
-                      <Title order={3}>
-                        <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-                          摸鱼资讯
-                        </Link>
-                      </Title>
-                      <Text
-                        size="xs"
-                        c="dimmed"
-                        fw={500}
-                        style={{ cursor: 'default', userSelect: 'none' }}
-                        onClick={handleTouchFishClick}
-                      >
-                        TouchFish News
-                      </Text>
-                    </Group>
-                  </Container>
-                </Box>
-                <Box p="md">
-                  <Outlet />
-                </Box>
+            <MantineProvider theme={theme} forceColorScheme="light">
+              <Notifications position="top-right" />
+              <Box
+                component="header"
+                py="sm"
+                style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
+              >
+                <Container size="xl" style={{ display: 'flex', alignItems: 'center' }}>
+                  <Group gap="xs">
+                    <img
+                      src="/logo.svg"
+                      alt="摸鱼资讯"
+                      width={40}
+                      height={40}
+                      style={{ borderRadius: 6, position: 'relative', right: -4 }}
+                    />
+                    <Title order={3}>
+                      <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+                        摸鱼资讯
+                      </Link>
+                    </Title>
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      fw={500}
+                      style={{ cursor: 'default', userSelect: 'none' }}
+                      onClick={handleTouchFishClick}
+                    >
+                      TouchFish News
+                    </Text>
+                  </Group>
+                </Container>
+              </Box>
+              <Box p="md">
+                <Outlet />
+              </Box>
               <Box
                 component="footer"
                 py="md"

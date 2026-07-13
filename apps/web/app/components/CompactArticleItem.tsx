@@ -1,9 +1,9 @@
-import { Text, Group, Tooltip, ActionIcon, Box, Loader } from '@mantine/core';
+import { ActionIcon, Box, Group, Loader, Text, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconSparkles, IconX } from '@tabler/icons-react';
 import type { Article } from '@repo/shared';
 import { formatRelativeTime } from '@repo/shared';
-import { useRef, useState, useEffect } from 'react';
+import { IconSparkles, IconX } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
 
 interface CompactArticleItemProps {
   article: Article;
@@ -79,14 +79,14 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
         borderBottom: '1px solid var(--mantine-color-gray-2)',
       }}
     >
-      <Group
-        justify="space-between"
-        wrap="nowrap"
-        py={6}
-        px="xs"
-        style={{ minHeight: 36 }}
-      >
-        <Tooltip label={displayTitle} disabled={!isTruncated} position="top" openDelay={600} withArrow>
+      <Group justify="space-between" wrap="nowrap" py={6} px="xs" style={{ minHeight: 36 }}>
+        <Tooltip
+          label={displayTitle}
+          disabled={!isTruncated}
+          position="top"
+          openDelay={600}
+          withArrow
+        >
           <Text
             ref={titleRef}
             component="a"
@@ -169,7 +169,9 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
       {summaryState === 'loading' && (
         <Group gap={6} px="xs" pb={8} style={{ margin: '0 8px 6px' }}>
           <Loader size={12} />
-          <Text size="xs" c="dimmed">正在生成总结…</Text>
+          <Text size="xs" c="dimmed">
+            正在生成总结…
+          </Text>
         </Group>
       )}
     </Box>

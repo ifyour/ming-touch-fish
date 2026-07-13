@@ -1,6 +1,6 @@
-import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
-import { getRouterManifest } from '@tanstack/react-start/router-manifest';
 import { QueryClient } from '@tanstack/react-query';
+import { getRouterManifest } from '@tanstack/react-start/router-manifest';
+import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
 import { createRouter } from './router';
 
 const createRouterFn = () =>

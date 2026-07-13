@@ -1,0 +1,15 @@
+name = "news-aggregator-web-e2e"
+main = "test/worker-entry.ts"
+compatibility_date = "2026-06-29"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "news-aggregator"
+database_id = "c4d7b287-e336-432c-bd93-930a03af7be9"
+preview_database_id = "c4d7b287-e336-432c-bd93-930a03af7be9"
+migrations_dir = "../packages/db/migrations"
+
+[[queues.producers]]
+binding = "NEWS_QUEUE"
+queue = "news-fetch-queue"

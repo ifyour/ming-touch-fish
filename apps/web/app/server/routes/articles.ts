@@ -1,10 +1,10 @@
-import { eq, desc, sql } from 'drizzle-orm';
-import { Hono } from 'hono';
 import { createDb, schema } from '@repo/db';
 import { STALE_GROUP_DAYS } from '@repo/shared';
-import { extractArticleText, extractFromHtml } from '../lib/extract';
-import { summarizeArticle, isContentSufficient, InsufficientContentError } from '../lib/summarize';
 import { logger } from '@repo/telemetry';
+import { desc, eq, sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { extractArticleText, extractFromHtml } from '../lib/extract';
+import { InsufficientContentError, isContentSufficient, summarizeArticle } from '../lib/summarize';
 import type { Bindings } from '../types';
 
 const ARTICLES_PER_SOURCE = 20;
@@ -81,7 +81,9 @@ app.get('/:id/summary', async (c) => {
 
     // 2. 回退到 RSS 正文（getExtraEntryFields 采集的 content）
     if (!text || !isContentSufficient(text)) {
-      const content = (row.metadata as Record<string, unknown> | undefined)?.content as string | undefined;
+      const content = (row.metadata as Record<string, unknown> | undefined)?.content as
+        | string
+        | undefined;
       if (content) {
         try {
           const t = extractFromHtml(content);
@@ -97,7 +99,9 @@ app.get('/:id/summary', async (c) => {
 
     // 3. 回退到 RSS 简介（description / 摘要）
     if (!text || !isContentSufficient(text)) {
-      const desc = (row.metadata as Record<string, unknown> | undefined)?.description as string | undefined;
+      const desc = (row.metadata as Record<string, unknown> | undefined)?.description as
+        | string
+        | undefined;
       if (desc) {
         try {
           const t = extractFromHtml(desc);
@@ -120,10 +124,7 @@ app.get('/:id/summary', async (c) => {
     }
 
     const summary = await summarizeArticle(text, apiKey);
-    await db
-      .update(schema.articles)
-      .set({ summary })
-      .where(eq(schema.articles.id, id));
+    await db.update(schema.articles).set({ summary }).where(eq(schema.articles.id, id));
     return c.json({ summary, cached: false });
   } catch (err) {
     if (err instanceof InsufficientContentError) {
@@ -152,10 +153,7 @@ app.get('/grouped', async (c) => {
       newestMs: sql<number | null>`CAST(MAX(${schema.articles.publishedAt}) AS INTEGER) * 1000`,
     })
     .from(schema.sources)
-    .leftJoin(
-      schema.articles,
-      eq(schema.articles.sourceId, schema.sources.id)
-    )
+    .leftJoin(schema.articles, eq(schema.articles.sourceId, schema.sources.id))
     .where(eq(schema.sources.isActive, true))
     .groupBy(schema.sources.id);
 
@@ -164,9 +162,7 @@ app.get('/grouped', async (c) => {
     .filter((r) => r.newestMs == null || Date.now() - r.newestMs > threshold)
     .map((r) => r.source.id);
 
-  const activeIds = sourceRows
-    .map((r) => r.source.id)
-    .filter((id) => !staleIds.includes(id));
+  const activeIds = sourceRows.map((r) => r.source.id).filter((id) => !staleIds.includes(id));
 
   const relevantIds = wantStale ? staleIds : activeIds;
 
@@ -202,7 +198,7 @@ app.get('/grouped', async (c) => {
         .orderBy(desc(schema.articles.publishedAt))
         .limit(ARTICLES_PER_SOURCE);
       return { source, articles };
-    })
+    }),
   );
 
   const result = perSource
@@ -211,7 +207,7 @@ app.get('/grouped', async (c) => {
     .sort(
       (a, b) =>
         b.source.priority - a.source.priority ||
-        (a.source.createdAt?.getTime() ?? 0) - (b.source.createdAt?.getTime() ?? 0)
+        (a.source.createdAt?.getTime() ?? 0) - (b.source.createdAt?.getTime() ?? 0),
     );
 
   c.header('Cache-Control', 'public, max-age=60');

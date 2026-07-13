@@ -65,6 +65,12 @@ pnpm monorepo + Turborepo。
 | 启动 fetcher（开发，带 scheduled 模拟） | `pnpm dev:fetcher` |
 | 全量开发 | `pnpm dev` |
 | 类型检查（全 workspace） | `pnpm typecheck` |
+| Lint 检查（Biome） | `pnpm lint` |
+| Lint 自动修复 + 格式化 | `pnpm lint:fix` |
+| 仅格式化（Biome） | `pnpm format` |
+| 单元/集成测试（Vitest，node 池） | `pnpm test` |
+| 单测 watch 模式 | `pnpm test:watch` |
+| 端到端测试（Vitest + workerd 真 D1） | `pnpm test:e2e` |
 | 构建 | `pnpm build` |
 | 部署前端 | `pnpm deploy:web` |
 | 部署 fetcher | `pnpm deploy:fetcher` |
@@ -73,7 +79,21 @@ pnpm monorepo + Turborepo。
 | 应用迁移（远程） | `wrangler d1 migrations apply news-aggregator --remote` |
 | 清理悬挂的 workerd/esbuild 进程 | `pnpm cleanup` |
 
-`turbo run <task>` 支持的任务：`build`、`dev`、`typecheck`、`lint`、`db:generate`、`db:migrate`、`deploy`。注意 `lint` 在各子包中未实际配置脚本，调用为空。
+`turbo run <task>` 支持的任务：`build`、`dev`、`typecheck`、`lint`、`db:generate`、`db:migrate`、`deploy`。（`lint` 在 turbo 中已移除：根 `pnpm lint` 直接用 Biome 扫全仓，不再走各子包脚本。）
+
+### 质量门禁（提交前）
+
+仓库通过 **husky pre-commit** 强制质量门禁，提交前自动跑（不可 `--no-verify` 跳过）：
+
+```
+pnpm lint        # Biome 检查（含格式化、import 整理、lint 规则）
+pnpm typecheck   # 全 workspace tsc --noEmit
+pnpm test        # 纯逻辑单测（Vitest node 池，快）
+```
+
+- **格式化/Lint 用 Biome**（`biome.json` 在仓库根）：2 空格、单引号、分号、`organizeImports` 开启。新增/改动文件必须过 Biome，否则提交被拒。
+- **单测**：Vitest + node 池，覆盖纯函数（`@repo/shared`/`@repo/ingest` 抓取解析、`@repo/web` 的 `extract`/`summarize`）。配置见根 `vitest.config.ts`，覆盖 `packages/*` 与 `apps/web/app/server`。
+- **端到端测试（`pnpm test:e2e`）不入 pre-commit 钩子**，需手动运行。它用 `@cloudflare/vitest-pool-workers` 起**真 workerd** + **真 D1 本地库**（迁移由 `apps/web/test/setup.ts` 经 Vite `define` 注入后在 `beforeAll` 套用），驱动 `apps/web/test/worker-entry.ts`（转发 Hono `app.fetch`）打真实 Web API。用例见 `apps/web/test/*.e2e.test.ts`。注意：`vitest` 必须保持 **4.x**（与 pool 的 peer `^4.1.0` 匹配），且 e2e 配置用 `cloudflareTest` 插件 + `pool: "cloudflare-pool"`，不能用旧版 `poolOptions` 写法。
 
 ## 架构与数据流
 
@@ -149,6 +169,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 ### 代码风格
 
 - TypeScript **strict** 模式，ESM（`"type": "module"`），模块解析 Bundler。
+- 格式化与 Lint 统一用 **Biome**（`biome.json` 在仓库根）：2 空格缩进、单引号、分号、`organizeImports` 开启。提交前 husky 会跑 `pnpm lint`，未通过会被拒。不要手动跑 prettier/eslint 覆盖 Biome。
 - 跨端共享代码放 `packages/`，不要在 `apps/web` 和 `apps/fetcher` 之间重复实现。
 - 导入 workspace 包用 `@repo/db`、`@repo/shared`、`@repo/telemetry`；导入子路径用 `@repo/db/schema`。
 - 日志用 `@repo/telemetry` 的 `logger`，结构化字段带 `service: 'web-api' | 'fetcher'`，便于在 Cloudflare 控制台筛选。
@@ -301,4 +322,4 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 - 标题用中文，简短描述变更
 - 示例：`refactor: 翻译模块从 Cloudflare AI 改用 DeepL API`
 
-创建提交前先跑 `pnpm typecheck`。**不要** `--no-verify` 跳过 hook。**不要** amend 已推送的提交，新建提交即可。
+创建提交前先跑 `pnpm typecheck`。**不要** `--no-verify` 跳过 hook（husky pre-commit 会强制 `pnpm lint && pnpm typecheck && pnpm test`）。**不要** amend 已推送的提交，新建提交即可。

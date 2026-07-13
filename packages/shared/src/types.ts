@@ -1,6 +1,6 @@
-import type { Source, Article } from '@repo/db';
+import type { Article, Source } from '@repo/db';
 
-export type { Source, Article };
+export type { Article, Source };
 
 export interface QueueMessage {
   sourceId: number;

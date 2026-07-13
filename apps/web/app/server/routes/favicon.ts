@@ -1,7 +1,7 @@
-import { Hono } from 'hono';
 import { fetchWithUA } from '@repo/shared';
-import { parseHTML } from 'linkedom';
 import { logger } from '@repo/telemetry';
+import { Hono } from 'hono';
+import { parseHTML } from 'linkedom';
 import type { Bindings } from '../types';
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -19,9 +19,9 @@ interface FaviconCandidate {
 function findFaviconHref(homepage: URL, html: string): string | null {
   try {
     const { document } = parseHTML(html);
-    const links = Array.from(
-      document.querySelectorAll('link[rel]')
-    ) as Array<{ getAttribute: (n: string) => string | null }>;
+    const links = Array.from(document.querySelectorAll('link[rel]')) as Array<{
+      getAttribute: (n: string) => string | null;
+    }>;
 
     const icons: FaviconCandidate[] = [];
     for (const link of links) {
@@ -35,7 +35,7 @@ function findFaviconHref(homepage: URL, html: string): string | null {
 
     const small =
       icons.find(
-        (c) => c.rel === 'icon' || c.rel === 'shortcut icon' || c.rel === 'alternate icon'
+        (c) => c.rel === 'icon' || c.rel === 'shortcut icon' || c.rel === 'alternate icon',
       ) ?? icons.find((c) => !c.rel.includes('apple-touch') && !c.rel.includes('mask'));
     const chosen = small ?? icons[0];
     return new URL(chosen.href, homepage).toString();

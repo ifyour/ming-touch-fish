@@ -1,17 +1,17 @@
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogMeta {
-  service?: string
-  requestId?: string
-  duration?: number
-  error?: unknown
-  [key: string]: unknown
+  service?: string;
+  requestId?: string;
+  duration?: number;
+  error?: unknown;
+  [key: string]: unknown;
 }
 
 function formatValue(v: unknown): string {
-  if (v instanceof Error) return `${v.name}: ${v.message}\n${v.stack ?? ''}`
-  if (typeof v === 'object' && v !== null) return JSON.stringify(v)
-  return String(v)
+  if (v instanceof Error) return `${v.name}: ${v.message}\n${v.stack ?? ''}`;
+  if (typeof v === 'object' && v !== null) return JSON.stringify(v);
+  return String(v);
 }
 
 function log(level: LogLevel, message: string, meta?: LogMeta) {
@@ -19,24 +19,24 @@ function log(level: LogLevel, message: string, meta?: LogMeta) {
     timestamp: new Date().toISOString(),
     level,
     message,
-  }
+  };
 
   if (meta) {
     for (const [k, v] of Object.entries(meta)) {
-      if (v !== undefined) entry[k] = v
+      if (v !== undefined) entry[k] = v;
     }
   }
 
   const line = Object.entries(entry)
     .map(([k, v]) => `${k}=${formatValue(v)}`)
-    .join(' ')
+    .join(' ');
 
   if (level === 'error') {
-    console.error(line)
+    console.error(line);
   } else if (level === 'warn') {
-    console.warn(line)
+    console.warn(line);
   } else {
-    console.log(line)
+    console.log(line);
   }
 }
 
@@ -45,4 +45,4 @@ export const logger = {
   info: (message: string, meta?: LogMeta) => log('info', message, meta),
   warn: (message: string, meta?: LogMeta) => log('warn', message, meta),
   error: (message: string, meta?: LogMeta) => log('error', message, meta),
-}
+};

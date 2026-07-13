@@ -1,12 +1,12 @@
+import { extract } from '@extractus/feed-extractor';
 import { zValidator } from '@hono/zod-validator';
-import { eq, desc, asc, sql } from 'drizzle-orm';
+import { createDb, schema } from '@repo/db';
+import type { Env } from '@repo/ingest';
+import { BROWSER_UA, type SourceInput } from '@repo/shared';
+import { logger } from '@repo/telemetry';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { createDb, schema } from '@repo/db';
-import { extract } from '@extractus/feed-extractor';
-import { logger } from '@repo/telemetry';
-import { BROWSER_UA, type SourceInput } from '@repo/shared';
-import type { Env } from '@repo/ingest';
 import type { Bindings } from '../types';
 
 function createFetcherEnv(env: Bindings): Env {
@@ -21,7 +21,11 @@ function createFetcherEnv(env: Bindings): Env {
 function normalizeInputUrl(raw: string): string | null {
   let url = raw.trim();
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-  try { return new URL(url).href; } catch { return null; }
+  try {
+    return new URL(url).href;
+  } catch {
+    return null;
+  }
 }
 
 async function isFeed(url: string, signal?: AbortSignal): Promise<boolean> {
@@ -62,7 +66,11 @@ app.post('/detect', zValidator('json', z.object({ url: z.string() })), async (c)
   if (!normalized) return c.json({ feedUrl: null });
 
   let parsed: URL;
-  try { parsed = new URL(normalized); } catch { return c.json({ feedUrl: null }); }
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    return c.json({ feedUrl: null });
+  }
 
   const candidates = new Set<string>();
   candidates.add(normalized);
@@ -76,13 +84,20 @@ app.post('/detect', zValidator('json', z.object({ url: z.string() })), async (c)
   }
 
   try {
-    const res = await fetch(normalized, { signal: AbortSignal.timeout(6000), headers: { 'user-agent': UA } });
+    const res = await fetch(normalized, {
+      signal: AbortSignal.timeout(6000),
+      headers: { 'user-agent': UA },
+    });
     const html = await res.text();
-    const re = /<link[^>]*?rel=["']alternate["'][^>]*?type=["']application\/(?:rss|atom)\+xml["'][^>]*?href=["']([^"']+)["']/gi;
-    const re2 = /<link[^>]*?type=["']application\/(?:rss|atom)\+xml["'][^>]*?rel=["']alternate["'][^>]*?href=["']([^"']+)["']/gi;
+    const re =
+      /<link[^>]*?rel=["']alternate["'][^>]*?type=["']application\/(?:rss|atom)\+xml["'][^>]*?href=["']([^"']+)["']/gi;
+    const re2 =
+      /<link[^>]*?type=["']application\/(?:rss|atom)\+xml["'][^>]*?rel=["']alternate["'][^>]*?href=["']([^"']+)["']/gi;
     for (const r of [re, re2]) {
       for (const m of html.matchAll(r)) {
-        try { candidates.add(new URL(m[1], normalized).href); } catch {}
+        try {
+          candidates.add(new URL(m[1], normalized).href);
+        } catch {}
       }
     }
   } catch {}
@@ -123,7 +138,7 @@ app.get('/', async (c) => {
     .orderBy(
       desc(schema.sources.isActive),
       desc(schema.sources.priority),
-      asc(schema.sources.createdAt)
+      asc(schema.sources.createdAt),
     );
 
   c.header('Cache-Control', 'no-cache, no-store');
@@ -187,15 +202,19 @@ app.post('/fetch-all', async (c) => {
   const sources = await db.select().from(schema.sources).where(eq(schema.sources.isActive, true));
 
   if (c.env.DIRECT_FETCH) {
-      const { fetchAndStore } = await import('@repo/ingest/fetcher');
-      const fetcherEnv = createFetcherEnv(c.env);
+    const { fetchAndStore } = await import('@repo/ingest/fetcher');
+    const fetcherEnv = createFetcherEnv(c.env);
     let fetched = 0;
     for (const source of sources) {
       try {
         await fetchAndStore(fetcherEnv, source.id);
         fetched++;
       } catch (err) {
-        logger.error(`Direct fetch failed for source ${source.id}`, { service: 'web-api', sourceId: source.id, error: err });
+        logger.error(`Direct fetch failed for source ${source.id}`, {
+          service: 'web-api',
+          sourceId: source.id,
+          error: err,
+        });
       }
     }
     return c.json({ success: true, fetched });
@@ -207,7 +226,11 @@ app.post('/fetch-all', async (c) => {
       await c.env.NEWS_QUEUE.send({ sourceId: source.id });
       queued++;
     } catch (err) {
-      logger.error(`Failed to queue source ${source.id}`, { service: 'web-api', sourceId: source.id, error: err });
+      logger.error(`Failed to queue source ${source.id}`, {
+        service: 'web-api',
+        sourceId: source.id,
+        error: err,
+      });
     }
   }
 
@@ -227,7 +250,11 @@ app.post('/:id/fetch', async (c) => {
       await fetchAndStore(createFetcherEnv(c.env), id);
       return c.json({ success: true, fetched: true });
     } catch (err) {
-      logger.error(`Direct fetch failed for source ${id}`, { service: 'web-api', sourceId: id, error: err });
+      logger.error(`Direct fetch failed for source ${id}`, {
+        service: 'web-api',
+        sourceId: id,
+        error: err,
+      });
       return c.json({ error: 'Failed to fetch source' }, 500);
     }
   }

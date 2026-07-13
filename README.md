@@ -72,6 +72,25 @@ pnpm dev:fetcher
 
 访问 http://localhost:3000 查看首页。管理后台入口为 http://localhost:3000/fish（也可在首页点击页头 "TouchFish News" 文字 3 次进入）。
 
+## 代码质量与测试
+
+提交前 husky pre-commit 钩子会自动执行质量门禁（不可用 `--no-verify` 跳过）：
+
+```bash
+pnpm lint        # Biome 检查（格式化 + import 整理 + lint）
+pnpm typecheck   # 全 workspace tsc --noEmit
+pnpm test        # Vitest 单测（node 池，纯逻辑）
+```
+
+其他常用命令：
+
+```bash
+pnpm lint:fix    # Biome 自动修复 + 格式化
+pnpm format      # 仅格式化
+pnpm test:watch  # 单测 watch
+pnpm test:e2e    # 端到端测试：真 workerd + 真 D1，验证 Web API（不入 pre-commit 钩子，需手动运行）
+```
+
 ## 生产部署
 
 ### 1. 准备 Cloudflare 资源

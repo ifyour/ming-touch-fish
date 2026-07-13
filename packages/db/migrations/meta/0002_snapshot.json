@@ -74,18 +74,12 @@
       "indexes": {
         "articles_source_url_idx": {
           "name": "articles_source_url_idx",
-          "columns": [
-            "source_id",
-            "url"
-          ],
+          "columns": ["source_id", "url"],
           "isUnique": true
         },
         "articles_source_published_idx": {
           "name": "articles_source_published_idx",
-          "columns": [
-            "source_id",
-            "published_at"
-          ],
+          "columns": ["source_id", "published_at"],
           "isUnique": false
         }
       },
@@ -94,12 +88,8 @@
           "name": "articles_source_id_sources_id_fk",
           "tableFrom": "articles",
           "tableTo": "sources",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -181,9 +171,7 @@
       "indexes": {
         "sources_priority_idx": {
           "name": "sources_priority_idx",
-          "columns": [
-            "priority"
-          ],
+          "columns": ["priority"],
           "isUnique": false
         }
       },
