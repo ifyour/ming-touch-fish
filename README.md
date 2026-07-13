@@ -70,7 +70,7 @@ pnpm dev:web
 pnpm dev:fetcher
 ```
 
-访问 http://localhost:3000 查看首页。管理后台入口为 http://localhost:3000/fish（也可在首页点击页头 "TouchFish News" 文字 3 次进入）。
+访问 http://localhost:3000 查看首页。管理后台入口为 http://localhost:3000/fish （也可在首页点击页头 "TouchFish News" 文字 3 次进入）。
 
 ## 代码质量与测试
 
