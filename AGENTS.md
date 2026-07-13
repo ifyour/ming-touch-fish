@@ -99,7 +99,7 @@ pnpm test        # 纯逻辑单测（Vitest node 池，快）
 
 ### 两个部署单元 + 一个共享库
 
-1. **web**（Cloudflare Pages）：TanStack Start SSR + Hono API。Hono app 在 [apps/web/app/server/app.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/app.ts) 装配，通过 [apps/web/app/routes/api/$.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/api/$.ts) 的通配 API 路由挂载到 `/api/*`。web 既是前端也是 API 服务器，同时是 Queue 的 **producer**。
+1. **web**（Cloudflare Pages）：TanStack Start SSR + Hono API。Hono app 在 [apps/web/app/server/app.ts](apps/web/app/server/app.ts) 装配，通过 [apps/web/app/routes/api/$.ts](apps/web/app/routes/api/$.ts) 的通配 API 路由挂载到 `/api/*`。web 既是前端也是 API 服务器，同时是 Queue 的 **producer**。
 2. **fetcher**（Cloudflare Workers）：cron 触发的抓取 worker，是 Queue 的 **consumer**，也是 producer（cron 入队自身消费）。负责抓 RSS → 去重 → DeepL 翻译 → 入库 D1。
 3. **@repo/ingest**（packages/ingest）：抓取核心库，**无 worker 入口**，抽出原 `apps/fetcher/src` 下的 `fetcher.ts`/`dedup.ts`/`translator.ts`/`firecrawl.ts`/`v2ex-adapter.ts`/`types.ts`。`apps/fetcher` 现在只留 `src/index.ts` 这个 worker 入口，依赖 `@repo/ingest`；`apps/web` 的 `DIRECT_FETCH` 本地同步抓取路径也依赖 `@repo/ingest`，**不再直接依赖 worker 包 `@repo/fetcher`**。这样两个部署单元彻底解耦，抓取逻辑只维护一份。
 
@@ -123,7 +123,7 @@ fetcher.queue(batch)  每批最多 10 条，最多重试 3 次
 
 web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在**生产环境**向 `NEWS_QUEUE` 投递消息，由 fetcher 异步消费。这是为了规避 Pages 函数同步执行多 UA 回退导致的 30–40 秒 pending。
 
-**本地开发例外**：由于本地开发时 web worker 和 fetcher 是两个独立进程，Queue 不互通（消息发了但没人收），因此当 web 的 `.dev.vars` 中设置了 `DIRECT_FETCH=true` 时，API 会跳过 Queue，直接调用 `fetchAndStore()` 同步抓取。前端 [fish.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/fish.tsx) 通过轮询检测 `lastFetchedAt` 变化来判断抓取完成。
+**本地开发例外**：由于本地开发时 web worker 和 fetcher 是两个独立进程，Queue 不互通（消息发了但没人收），因此当 web 的 `.dev.vars` 中设置了 `DIRECT_FETCH=true` 时，API 会跳过 Queue，直接调用 `fetchAndStore()` 同步抓取。前端 [fish.tsx](apps/web/app/routes/fish.tsx) 通过轮询检测 `lastFetchedAt` 变化来判断抓取完成。
 
 ### 管理后台入口
 
@@ -131,7 +131,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 
 ### 数据模型
 
-两张表（[packages/db/src/schema.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/packages/db/src/schema.ts)）：
+两张表（[packages/db/src/schema.ts](packages/db/src/schema.ts)）：
 
 - `sources`：id / name / url / priority / fetch_frequency（hourly|twice_daily|daily）/ is_active / last_fetched_at / created_at / updated_at
 - `articles`：id / source_id (FK cascade) / title / translated_title（可空）/ url（**unique**）/ published_at / fetched_at / summary（可空，AI 总结缓存）/ metadata(json)
@@ -160,7 +160,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 ### 抓取与队列
 
 - **生产环境的 web API fetch 端点必须走队列异步**，不要在 web worker 里同步抓取。同步抓取会因为多 UA 回退造成 30–40s pending。本地开发例外：`DIRECT_FETCH=true` 时直接调用 `fetchAndStore()`。
-- fetcher 的 `queue()` 处理失败时：**配额类错误 `message.ack()`（重试无意义）**，其他错误 `message.retry()`。`isCloudflareQuotaError()` 在 [packages/shared/src/utils.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/packages/shared/src/utils.ts) 已实现，不要在 catch 里无脑 retry。
+- fetcher 的 `queue()` 处理失败时：**配额类错误 `message.ack()`（重试无意义）**，其他错误 `message.retry()`。`isCloudflareQuotaError()` 在 [packages/shared/src/utils.ts](packages/shared/src/utils.ts) 已实现，不要在 catch 里无脑 retry。
 - URL 去重前必须先过 `normalizeUrl()` 剥离 utm_* / fbclid / gclid / ref / source 等追踪参数，再按 `(source_id, url)` 复合唯一索引去重，允许不同源共享同一条 URL。
 - V2EX 源（URL 含 `v2ex.com/index.xml`）走专用 JSON API 分支，不走 RSS 解析。
 - V2EX 热议源（URL 含 `v2ex.com/#hot-topics`）通过 Firecrawl Scrape API 抓取首页 HTML，正则提取 `#TopicsHot` 区块。URL 末尾带 `?` 查询参数强制 V2EX 返回 HTML 而非 RSS/XML（内容协商）。Firecrawl API key 通过环境变量 `FIRECRAWL_API_KEY` 提供，配额 402 错误由 `isCloudflareQuotaError()` 检测并 ack。**热议条目在首页 `#TopicsHot` 中只有标题与链接、无正文**，因此抓取后会用 V2EX `topics/show.json?id=<topicId>` API 逐条补全 `content_rendered`，写入 `metadata.content` / `metadata.description`。这样文章总结（`/api/articles/:id/summary`）的 RSS 正文回退（第 2 级）才能命中；否则热议源的文章无任何正文落库，总结只能依赖请求时实时抓取话题页，在 dev / 受限网络下会稳定返回 422「正文抽取不足」。该补全是尽力而为：单条 API 失败只跳过该条，不影响其余。
@@ -193,7 +193,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 7. 两个终端分别跑 `pnpm dev:web` 和 `pnpm dev:fetcher`。
 8. 访问 <http://localhost:3000>，首页右上 "TouchFish News" 文字连点 3 次进入 `/fish`。
 
-web 端本地通过 `wrangler getBindingsProxy()` 拿 D1/Queue 绑定（[apps/web/app/routes/api/$.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/api/$.ts)）；如果失败回退到 `createMockEnv()`（空实现，仅用于类型检查不报错）。
+web 端本地通过 `wrangler getBindingsProxy()` 拿 D1/Queue 绑定（[apps/web/app/routes/api/$.ts](apps/web/app/routes/api/$.ts)）；如果失败回退到 `createMockEnv()`（空实现，仅用于类型检查不报错）。
 
 > 本地 D1 注意：web 与 fetcher 各自有独立的本地 sqlite 文件（同 `database_id` 但分属 `apps/web/.wrangler` 与 `apps/fetcher/.wrangler`）。新增迁移后，**两个本地库都要应用**：在 `apps/fetcher` 与 `apps/web` 分别执行 `wrangler d1 migrations apply news-aggregator --local`。若 web 本地库缺列导致 `no such column`，可直接 `wrangler d1 execute news-aggregator --local --command "ALTER TABLE articles ADD COLUMN summary text;"`（从 `apps/web` 目录执行）。
 
@@ -229,7 +229,7 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 
 ### 修改 schema
 
-1. 编辑 [packages/db/src/schema.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/packages/db/src/schema.ts)
+1. 编辑 [packages/db/src/schema.ts](packages/db/src/schema.ts)
 2. `pnpm db:generate`（在 `packages/db` 内生成迁移 SQL）
 3. 检查 `packages/db/migrations/` 下新生成的 SQL
 4. 本地 `wrangler d1 migrations apply news-aggregator --local` 验证
@@ -238,18 +238,18 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 
 ### 修改前端 UI
 
-- 首页：[apps/web/app/routes/index.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/index.tsx) + `components/SourceSection.tsx`、`CompactArticleItem.tsx`
+- 首页：[apps/web/app/routes/index.tsx](apps/web/app/routes/index.tsx) + `components/SourceSection.tsx`、`CompactArticleItem.tsx`
 - **首页「加载更多」折叠（懒加载）**：首页按 priority 排序展示资讯源。**过期源（最新文章 `publishedAt` 距今超过 30 天，或无文章）的判定已下移到服务端**，由 `/api/articles/grouped` 的 `scope` 参数控制：默认 `?scope=active` 只返回活跃源、`?scope=stale` 只返回过期源（较慢更新的订阅源）。首页初始只请求活跃源；底部「加载更多」按钮**仅在点击时才请求 `?scope=stale`**，把过期源查询延迟到用户真正需要时，从源头压低 D1 读配额。服务端用活跃响应头 `X-Has-Stale: true/false` 告知前端是否存在可懒加载的过期源。判定口径见 `isStaleGroup()` / `isStaleByNewestPublishedAt()`（`packages/shared/src/utils.ts`）。
 - 首页卡片每源默认展示 10 条，点击卡片内 "Show more" 最多再展开 10 条（共 20 条）；`/api/articles/grouped` 服务端逐源 `ORDER BY published_at DESC LIMIT 20` 取最新 20 条（每源一次索引查询、1 个绑定参数），避免一次性捞出全部历史文章。
-- 后台：[apps/web/app/routes/fish.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/fish.tsx) + `SourceForm.tsx`
+- 后台：[apps/web/app/routes/fish.tsx](apps/web/app/routes/fish.tsx) + `SourceForm.tsx`
 - 后台通过 `usePollingAfterFetch` hook 轮询检测 `lastFetchedAt` 变化，实现每个源独立的抓取状态追踪（转动/完成）
-- 主题在 [apps/web/app/routes/__root.tsx](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/routes/__root.tsx) 的 `createTheme({ primaryColor: 'blue', defaultRadius: 'md' })`
+- 主题在 [apps/web/app/routes/__root.tsx](apps/web/app/routes/__root.tsx) 的 `createTheme({ primaryColor: 'blue', defaultRadius: 'md' })`
 - Mantine CSS 通过 `?inline` 在 SSR 内联，避免样式闪烁。
 - 修改路由后 `routeTree.gen.ts` 会自动重新生成，不要手动编辑。
 
 ### 修改 API
 
-所有 API 在 [apps/web/app/server/routes/](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/routes/) 下。新增子路由记得在 [app.ts](file:///Users/wangmingming/Documents/Projects/ming-touch-fish/apps/web/app/server/app.ts) 里 `app.route('/api/xxx', xxxRoute)`。入参用 `zValidator` + zod 校验。
+所有 API 在 [apps/web/app/server/routes/](apps/web/app/server/routes/) 下。新增子路由记得在 [app.ts](apps/web/app/server/app.ts) 里 `app.route('/api/xxx', xxxRoute)`。入参用 `zValidator` + zod 校验。
 
 - `GET /api/articles/:id/summary`：文章 **AI 总结**。先查 D1 `summary` 字段，命中缓存直接返回 `{ summary, cached: true }`；未命中则按**三级回退**抽取正文，任一级抽到「充足正文」（清洗后 ≥ 80 字且有效字符占比 ≥ 30%，见 `isContentSufficient`）即用其调 Gemini，全部不足才 422：
   1. **实时抓取文章 URL**：`extractArticleText()` → `fetchWithUA()`（`@repo/shared` 多 UA 回退）+ `linkedom` 构造 DOM + `@mozilla/readability` 提取正文。该路径**关闭去标签兜底**（`extractFromHtml({ allowStripFallback: false })`）——Readability 取不到正文就抛错，避免把 JS 渲染页 shell 当正文、绕过下方 RSS 回退并缓存垃圾。
