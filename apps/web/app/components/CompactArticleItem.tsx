@@ -49,6 +49,7 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
     if (article.summary) {
       setSummaryText(article.summary);
       setSummaryState('open');
+      onRead?.(article.id);
       return;
     }
 
@@ -62,6 +63,7 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
       }
       setSummaryText(data.summary ?? '');
       setSummaryState('open');
+      onRead?.(article.id);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : '总结生成失败');
       setSummaryState('error');
