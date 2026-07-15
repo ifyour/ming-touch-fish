@@ -263,7 +263,7 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 
 ## 已知坑
 
-- **`apps/web` 与根目录 `public/`** 都有 favicon.svg/logo.svg，构建用 `apps/web/public/`。
+- **静态资源目录唯一**：站点静态资源（favicon.svg / logo.svg / `_headers`）只放在 `apps/web/public/`，根目录 `public/` 已删除（历史上二者重复，改根目录的不会生效）。构建与部署以 `apps/web/public/` 为准。
 - **`app.config.timestamp_*.js`** 是 Vinxi 构建产物，已在 `.gitignore`，忽略即可。
 - **`pnpm cleanup`** 会 `pkill` workerd/esbuild 进程，本地 dev 卡死时有用。
 - **`.playwright-mcp/`** 是 Playwright MCP 缓存，已 gitignore，不影响功能。

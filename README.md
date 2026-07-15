@@ -1,15 +1,48 @@
-# Cloudflare 个人资讯聚合站点
+# 摸鱼资讯（TouchFish News）
 
-基于 Cloudflare 全家桶（Pages / Workers / D1 / Queues）的个人资讯聚合应用。
+基于 Cloudflare 全家桶（Pages / Workers / D1 / Queues）的个人资讯聚合应用。定时抓取 RSS 源 → 用 DeepL 将英文标题翻译为中文 → 在前端按源分组展示。
+
+- 生产站点：<https://news.mingming.dev/>
+- 生产 fetcher worker：<https://news-aggregator-fetcher.ifyour.workers.dev>
+- 部署目标：Cloudflare Pages（前端 + API）+ Cloudflare Workers（定时抓取）
+
+## 功能特性
+
+- **多源聚合**：按源分组展示资讯，首页按优先级排序，支持「加载更多」懒加载更新较慢的过期源。
+- **英文标题翻译**：DeepL API v2 将拉丁文标题批量翻译为中文（中文源标题不进 DeepL），翻译失败自动回退原标题。
+- **文章 AI 总结**：任意文章可一键生成 50~80 字中文概述（Gemini `gemini-3.1-flash-lite`），结果缓存到 D1，命中即直接返回。
+- **V2EX 热议**：除常规 RSS 外，内置 V2EX 热议适配器（Firecrawl 抓取首页 `#TopicsHot` + 逐条补全正文），覆盖无 RSS 且反爬强的源。
+- **异步抓取**：生产环境抓取走 Cloudflare Queues 异步消费，规避 Pages 函数长耗时同步阻塞。
+- **隐蔽管理后台**：页头 "TouchFish News" 文字连点 3 次进入 `/fish`，支持资讯源增删改、批量启停、单源/全量抓取触发。
 
 ## 技术栈
 
 - **前端**：TanStack Start + Mantine v7
-- **后端 API**：Hono（通过 TanStack Start API 通配路由挂载）
+- **后端 API**：Hono（通过 TanStack Start API 通配路由挂载到 `/api/*`）
 - **数据库**：Cloudflare D1 + Drizzle ORM
 - **定时抓取**：Cloudflare Workers + Cron Triggers + Queues
 - **翻译**：DeepL API v2（英文标题 → 中文，批量上限 50 条/请求）
+- **AI 总结**：Gemini `gemini-3.1-flash-lite`（Google Generative Language API）
 - **反爬代理**：Firecrawl Scrape API（用于 V2EX 热议等无 RSS 且反爬强的源）
+
+## 架构概览
+
+两个部署单元 + 一个共享库，抓取逻辑只维护一份：
+
+- **web**（Cloudflare Pages）：TanStack Start SSR + Hono API，既是前端也是 API 服务器，同时是 Queue 的 **producer**。
+- **fetcher**（Cloudflare Workers）：cron 触发的抓取 worker，是 Queue 的 **consumer**，负责抓 RSS → 去重 → DeepL 翻译 → 入库 D1。
+- **@repo/ingest**（packages/ingest）：抓取核心库，无 worker 入口，供 fetcher 与 web 共用。
+
+抓取流水线：
+
+```
+[cron 0 * * * *] → fetcher.scheduled() → 按频率过滤源 → 每源入队一条消息
+     ↓
+fetcher.queue(batch)  每批最多 10 条，最多重试 3 次
+   → fetchAndStore(): 抓取 → normalizeUrl 去重 → 拉丁标题批量翻译 → 逐条入库 → 更新 last_fetched_at
+```
+
+本地开发例外：web 的 `.dev.vars` 设置 `DIRECT_FETCH=true` 时，API 跳过 Queue 直接同步抓取（详见下方「本地开发」）。
 
 ## 项目结构
 
@@ -17,14 +50,29 @@
 .
 ├── apps/
 │   ├── web/          # TanStack Start 前端 + Hono API（Cloudflare Pages）
-│   └── fetcher/      # 定时抓取 Worker 入口（Cloudflare Workers，逻辑来自 @repo/ingest）
+│   │   ├── app/routes/        # 文件路由（index.tsx 首页 / fish.tsx 后台 / api/$.ts 通配 API）
+│   │   ├── app/server/        # Hono 应用与路由（articles / sources）
+│   │   └── app/components/    # React 组件
+│   └── fetcher/      # 定时抓取 Worker 入口（Cloudflare Workers，仅 src/index.ts，逻辑来自 @repo/ingest）
 ├── packages/
-│   ├── db/           # Drizzle schema + D1 client
+│   ├── db/           # Drizzle schema + D1 client（sources / articles 两张表）
 │   ├── ingest/       # 抓取核心库（抓 RSS / 去重 / DeepL 翻译 / Firecrawl / V2EX，供 fetcher 与 web 共用）
-│   ├── shared/       # 共享类型与工具
-│   └── telemetry/    # 结构化日志
+│   ├── shared/       # 共享类型与工具（normalizeUrl / shouldFetchNow / isCloudflareQuotaError 等）
+│   └── telemetry/    # 结构化日志（logger）
+├── turbo.json        # build / dev / typecheck / lint / db:generate / deploy
+├── pnpm-workspace.yaml
+├── .pnpmfile.cjs     # 强制锁版本：@tanstack/* 全部固定到 1.114.1
 └── package.json
 ```
+
+## 数据模型
+
+基于 Drizzle ORM，D1 中两张表（完整定义见 `packages/db/src/schema.ts`）：
+
+- `sources`：id / name / url / priority / fetch_frequency（hourly|twice_daily|daily）/ is_active / last_fetched_at / created_at / updated_at
+- `articles`：id / source_id（FK cascade）/ title / translated_title（可空）/ url（**unique**）/ published_at / fetched_at / summary（可空，AI 总结缓存）/ metadata（json）
+
+关键索引：`articles_source_url_idx`（source_id + url 复合唯一，跨源去重依据）、`articles_source_published_idx`、`sources_priority_idx`。
 
 ## 本地开发
 
@@ -72,6 +120,19 @@ pnpm dev:fetcher
 
 访问 http://localhost:3000 查看首页。管理后台入口为 http://localhost:3000/fish （也可在首页点击页头 "TouchFish News" 文字 3 次进入）。
 
+## API 概览
+
+所有 API 在 `apps/web/app/server/routes/` 下，通过 `app/routes/api/$.ts` 挂载到 `/api/*`，入参用 `zValidator` + zod 校验：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/articles/grouped?scope=active\|stale` | 按源聚合文章（`active` 默认只返活跃源，`stale` 返过期源），带 `X-Has-Stale` 响应头与边缘缓存 |
+| GET | `/api/articles/:id/summary` | 文章 AI 总结（先查缓存，未命中按三级回退抽正文调 Gemini，不足返回 422） |
+| POST | `/api/sources/:id/fetch` | 触发单源抓取（生产走 Queue 异步，本地 `DIRECT_FETCH` 同步） |
+| POST | `/api/sources/fetch-all` | 触发全量抓取 |
+| POST | `/api/sources/detect` | 输入网址自动探测 RSS（识别 `<link rel=alternate>` 与常见 feed 路径） |
+| 其他 | `/api/sources/*` | 资讯源增删改、批量启停、批量删除等管理操作 |
+
 ## 代码质量与测试
 
 提交前 husky pre-commit 钩子会自动执行质量门禁（不可用 `--no-verify` 跳过）：
@@ -89,6 +150,9 @@ pnpm lint:fix    # Biome 自动修复 + 格式化
 pnpm format      # 仅格式化
 pnpm test:watch  # 单测 watch
 pnpm test:e2e    # 端到端测试：真 workerd + 真 D1，验证 Web API（不入 pre-commit 钩子，需手动运行）
+pnpm build       # 构建
+pnpm cleanup     # 清理悬挂的 workerd / esbuild 进程（本地 dev 卡死时使用）
+pnpm db:generate # 生成 Drizzle 迁移（在 packages/db 内生成 SQL）
 ```
 
 ## 生产部署
@@ -146,3 +210,13 @@ pnpm deploy:web
 - 后台资讯源列表展示每行 ID，支持复选框多选后**批量启用 / 批量停用 / 批量删除**（删除带二次确认，相关文章随 FK cascade 一并清除）。
 - DeepL 免费版每月 50 万字符额度；若翻译调用频繁，可关注用量或关闭部分英文源的自动翻译。翻译失败时返回 `null`，前端自动回退显示原标题。
 - Queue 消费失败会自动重试 3 次（配额类错误直接 ack 不重试），可在 Workers 日志中查看错误详情。
+
+## 已知坑
+
+- **本地 D1 分离**：web 与 fetcher 各自有独立的本地 sqlite 文件（同 `database_id` 但分属 `apps/web/.wrangler` 与 `apps/fetcher/.wrangler`）。新增迁移后**两个本地库都要应用**：分别在 `apps/fetcher` 与 `apps/web` 执行 `wrangler d1 migrations apply news-aggregator --local`。
+- **本地 fetcher 不收 web 的消息**：本地开发时 web worker 与 fetcher 是两个独立进程、Queue 不互通。因此 web 必须设置 `DIRECT_FETCH=true` 才能同步抓取；想验证异步链路需另启 `pnpm dev:fetcher` 并用 `wrangler dev --test-scheduled` 模拟 cron。
+- **TanStack 版本锁定**：`.pnpmfile.cjs` 把 `@tanstack/*` 强制对齐到 `1.114.1`，升级时需同步改此文件，否则会解析出不一致版本导致 SSR/路由崩。
+- **测试框架版本**：`vitest` 必须保持 4.x（与 `@cloudflare/vitest-pool-workers` 的 peer `^4.1.0` 匹配），升级会破坏 e2e 测试。
+- **静态资源目录唯一**：favicon.svg / logo.svg / `_headers` 只放在 `apps/web/public/`，根目录 `public/` 已删除（历史上二者重复，改根目录的不会生效）。构建与部署以 `apps/web/public/` 为准。
+- **favicon 缓存**：`apps/web/public/_headers` 已对 favicon.svg / logo.svg 设置 7 天边缘缓存（`stale-while-revalidate` 30 天），改动 favicon 后注意缓存生效延迟。
+- **构建产物**：`app.config.timestamp_*.js` 是 Vinxi 构建产物，已在 `.gitignore`，忽略即可。
