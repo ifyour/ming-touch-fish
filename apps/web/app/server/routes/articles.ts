@@ -63,18 +63,23 @@ app.get('/:id/summary', async (c) => {
     return c.json({ error: 'GEMINI_API_KEY 未配置' }, 500);
   }
 
+  type Stage = 'live' | 'rss-content' | 'rss-desc' | 'gemini';
+  let stage: Stage = 'live';
+
   try {
     let text: string | null = null;
     let source: 'live' | 'rss-content' | 'rss-desc' | null = null;
 
     // 1. 直接抓取文章 URL → Readability（取不到正文会抛错，交由下方 RSS 回退）
     try {
+      stage = 'live';
       text = await extractArticleText(row.url);
       source = 'live';
     } catch (err) {
       logger.warn('文章总结实时抓取失败，回退 RSS 正文', {
         service: 'web-api',
         articleId: id,
+        stage,
         error: err instanceof Error ? err.message : err,
       });
       text = null;
@@ -82,6 +87,7 @@ app.get('/:id/summary', async (c) => {
 
     // 2. 回退到 RSS 正文（getExtraEntryFields 采集的 content）
     if (!text || !isContentSufficient(text)) {
+      stage = 'rss-content';
       const content = (row.metadata as Record<string, unknown> | undefined)?.content as
         | string
         | undefined;
@@ -93,13 +99,14 @@ app.get('/:id/summary', async (c) => {
             source = 'rss-content';
           }
         } catch {
-          // ignore, try next fallback
+          // 正文不足，回退下一级
         }
       }
     }
 
     // 3. 回退到 RSS 简介（description / 摘要）
     if (!text || !isContentSufficient(text)) {
+      stage = 'rss-desc';
       const desc = (row.metadata as Record<string, unknown> | undefined)?.description as
         | string
         | undefined;
@@ -111,30 +118,35 @@ app.get('/:id/summary', async (c) => {
             source = 'rss-desc';
           }
         } catch {
-          // ignore
+          // 正文不足
         }
       }
     }
 
     if (!text || !isContentSufficient(text)) {
-      throw new InsufficientContentError();
+      const detail =
+        !text || text.trim().length === 0
+          ? '各阶段均未能抽取到任何正文'
+          : '抽取到的正文不足（字数或有效字符占比不达标）';
+      throw new InsufficientContentError(detail);
     }
 
     if (source !== 'live') {
       logger.info('文章总结使用 RSS 回退生成', { service: 'web-api', articleId: id, source });
     }
 
+    stage = 'gemini';
     const summary = await summarizeArticle(text, apiKey);
     await db.update(schema.articles).set({ summary }).where(eq(schema.articles.id, id));
     return c.json({ summary, cached: false });
   } catch (err) {
     if (err instanceof InsufficientContentError) {
-      logger.warn('文章总结三级回退均失败', { service: 'web-api', articleId: id });
-      return c.json({ error: err.message }, 422);
+      logger.warn('文章总结三级回退均失败', { service: 'web-api', articleId: id, stage });
+      return c.json({ error: err.message, stage, detail: err.message }, 422);
     }
-    logger.error('文章总结失败', { service: 'web-api', articleId: id, error: err });
+    logger.error('文章总结失败', { service: 'web-api', articleId: id, error: err, stage });
     const message = err instanceof Error ? err.message : '总结生成失败';
-    return c.json({ error: message }, 500);
+    return c.json({ error: message, stage }, 500);
   }
 });
 
