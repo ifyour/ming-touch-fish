@@ -6,19 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": false,
-    "experimentalScannerIgnores": [
-      "**/node_modules",
-      "**/dist",
-      "**/.output",
-      "**/.vinxi",
-      "**/.tanstack-start",
-      "**/routeTree.gen.ts",
-      "**/app.config.timestamp*.js",
-      "**/packages/db/migrations",
-      "**/*.md",
-      "**/*.svg"
-    ]
+    "ignoreUnknown": false
   },
   "formatter": {
     "enabled": true,

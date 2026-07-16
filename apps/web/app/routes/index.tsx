@@ -7,7 +7,6 @@ import {
   Loader,
   SimpleGrid,
   Stack,
-  Text,
 } from '@mantine/core';
 import { IconAlertCircle, IconChevronDown } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';

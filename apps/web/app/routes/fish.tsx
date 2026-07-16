@@ -28,8 +28,6 @@ import {
   Switch,
   Table,
   Text,
-  Title,
-  Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -53,7 +51,7 @@ import { getApiUrl } from '../utils/apiUrl.js';
 
 function usePollingAfterFetch(
   queryClient: ReturnType<typeof useQueryClient>,
-  sources: SourceWithLastFetchCount[] | undefined,
+  _sources: SourceWithLastFetchCount[] | undefined,
   onSourceComplete: (id: number, newLastFetchedAt: Date) => void,
 ) {
   const [polling, setPolling] = useState(false);
@@ -567,7 +565,7 @@ function AdminPage() {
     onMutate: (id) => {
       setFetchingIds((prev) => new Set(prev).add(id));
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sources'] });
       startPolling([variables]);
     },

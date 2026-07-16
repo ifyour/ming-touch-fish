@@ -17,13 +17,13 @@ describe('isContentSufficient', () => {
   });
 
   it('accepts text whose meaningful-char ratio exceeds the 0.3 threshold', () => {
-    const text = 'a'.repeat(30) + ' '.repeat(49) + 'a';
+    const text = `${'a'.repeat(30) + ' '.repeat(49)}a`;
     expect(text.length).toBe(80);
     expect(isContentSufficient(text)).toBe(true);
   });
 
   it('rejects text whose meaningful-char ratio is below 0.3', () => {
-    const text = 'a'.repeat(20) + ' '.repeat(59) + 'a';
+    const text = `${'a'.repeat(20) + ' '.repeat(59)}a`;
     expect(isContentSufficient(text)).toBe(false);
   });
 });

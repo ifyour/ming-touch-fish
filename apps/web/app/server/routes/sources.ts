@@ -20,7 +20,7 @@ function createFetcherEnv(env: Bindings): Env {
 
 function normalizeInputUrl(raw: string): string | null {
   let url = raw.trim();
-  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
   try {
     return new URL(url).href;
   } catch {

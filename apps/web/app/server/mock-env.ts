@@ -2,15 +2,9 @@ import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/work
 import type { Bindings } from './types';
 
 class MockPreparedStatement {
-  private sql: string;
-  private params: unknown[] = [];
+  constructor(_sql: string) {}
 
-  constructor(sql: string) {
-    this.sql = sql;
-  }
-
-  bind(...values: unknown[]): D1PreparedStatement {
-    this.params = values;
+  bind(..._values: unknown[]): D1PreparedStatement {
     return this as unknown as D1PreparedStatement;
   }
 
