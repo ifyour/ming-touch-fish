@@ -66,6 +66,13 @@ app.get('/:id/summary', async (c) => {
   type Stage = 'live' | 'rss-content' | 'rss-desc' | 'gemini';
   let stage: Stage = 'live';
 
+  const STAGE_LABEL: Record<Stage, string> = {
+    live: '实时抓取文章页',
+    'rss-content': '读取 RSS 正文',
+    'rss-desc': '读取 RSS 简介',
+    gemini: '调用 Gemini 生成总结',
+  };
+
   try {
     let text: string | null = null;
     let source: 'live' | 'rss-content' | 'rss-desc' | null = null;
@@ -124,11 +131,11 @@ app.get('/:id/summary', async (c) => {
     }
 
     if (!text || !isContentSufficient(text)) {
-      const detail =
+      const reason =
         !text || text.trim().length === 0
-          ? '各阶段均未能抽取到任何正文'
-          : '抽取到的正文不足（字数或有效字符占比不达标）';
-      throw new InsufficientContentError(detail);
+          ? '所有来源都没有可用的正文内容'
+          : '抽取到的正文太短或有效内容过少';
+      throw new InsufficientContentError(reason);
     }
 
     if (source !== 'live') {
@@ -142,11 +149,25 @@ app.get('/:id/summary', async (c) => {
   } catch (err) {
     if (err instanceof InsufficientContentError) {
       logger.warn('文章总结三级回退均失败', { service: 'web-api', articleId: id, stage });
-      return c.json({ error: err.message, stage, detail: err.message }, 422);
+      return c.json(
+        {
+          error: '文章正文获取失败，暂时无法生成总结',
+          stage,
+          detail: `最后一步「${STAGE_LABEL[stage]}」失败：${err.message}`,
+        },
+        422,
+      );
     }
     logger.error('文章总结失败', { service: 'web-api', articleId: id, error: err, stage });
     const message = err instanceof Error ? err.message : '总结生成失败';
-    return c.json({ error: message, stage }, 500);
+    return c.json(
+      {
+        error: '总结生成失败，请稍后重试',
+        stage,
+        detail: `「${STAGE_LABEL[stage]}」出错：${message}`,
+      },
+      500,
+    );
   }
 });
 

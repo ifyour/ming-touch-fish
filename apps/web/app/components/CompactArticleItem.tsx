@@ -21,6 +21,7 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
   const [summaryState, setSummaryState] = useState<SummaryState>('collapsed');
   const [summaryText, setSummaryText] = useState(article.summary ?? '');
   const [errorMsg, setErrorMsg] = useState('');
+  const [errorDetail, setErrorDetail] = useState('');
 
   const isTouch = useMediaQuery('(hover: none)');
   const iconVisible = hovered || isTouch || summaryState === 'open' || summaryState === 'error';
@@ -55,9 +56,14 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
 
     setSummaryState('loading');
     setErrorMsg('');
+    setErrorDetail('');
     try {
       const resp = await fetch(`/api/articles/${article.id}/summary`);
-      const data = (await resp.json()) as { summary?: string; error?: string };
+      const data = (await resp.json()) as {
+        summary?: string;
+        error?: string;
+        detail?: string;
+      };
       if (!resp.ok) {
         throw new Error(data?.error ?? '总结生成失败');
       }
@@ -66,6 +72,7 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
       onRead?.(article.id);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : '总结生成失败');
+      setErrorDetail((err as { detail?: string })?.detail ?? '');
       setSummaryState('error');
     }
   };
@@ -165,6 +172,11 @@ export function CompactArticleItem({ article, read = false, onRead }: CompactArt
           }}
         >
           总结失败：{errorMsg}
+          {errorDetail && (
+            <Text size="xs" c="dimmed" style={{ marginTop: 2, lineHeight: 1.5 }}>
+              {errorDetail}
+            </Text>
+          )}
         </Box>
       )}
 
