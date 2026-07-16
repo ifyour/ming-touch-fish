@@ -1,7 +1,17 @@
-import { ActionIcon, Anchor, Card, Center, Stack, Text, Title, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Anchor,
+  Card,
+  Center,
+  Loader,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from '@mantine/core';
 import { getSourceHomepage } from '@repo/shared';
 import { IconCheck } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ArticleGroupedBySource } from '../types/api';
 import { CompactArticleItem } from './CompactArticleItem.js';
 
@@ -10,7 +20,7 @@ interface SourceSectionProps {
 }
 
 const INITIAL_COUNT = 10;
-const MAX_COUNT = 20;
+const PAGE_SIZE = 10;
 const STORAGE_KEY = 'read_articles';
 const MAX_READ_IDS = 5000;
 
@@ -20,7 +30,7 @@ function getReadArticleIds(): Set<number> {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return new Set();
     const arr: number[] = JSON.parse(raw);
-    return new Set(arr.filter((n) => typeof n === 'number' && !isNaN(n)));
+    return new Set(arr.filter((n) => typeof n === 'number' && !Number.isNaN(n)));
   } catch {
     return new Set();
   }
@@ -39,20 +49,32 @@ function saveReadArticleIds(ids: Set<number>) {
   }
 }
 
+function buildGroupedUrl(sourceId: number, offset: number) {
+  const params = new URLSearchParams({
+    sourceId: String(sourceId),
+    offset: String(offset),
+    limit: String(PAGE_SIZE),
+  });
+  return `/api/articles/grouped?${params.toString()}`;
+}
 export function SourceSection({ group }: SourceSectionProps) {
-  const { source, articles } = group;
-  const [expanded, setExpanded] = useState(false);
+  const { source, articles: initialArticles, total } = group;
+  const [articles, setArticles] = useState(initialArticles.slice(0, INITIAL_COUNT));
+  const [offset, setOffset] = useState(articles.length);
+  const [hasMore, setHasMore] = useState(articles.length < total);
+  const [loading, setLoading] = useState(false);
   const [readArticleIds, setReadArticleIds] = useState<Set<number>>(getReadArticleIds);
+  // expanded 控制卡片是否锁定高度并允许滚动；点 Show More 或滚动到底部时展开。
+  const [expanded, setExpanded] = useState(false);
 
-  const hasMore = articles.length > INITIAL_COUNT;
-  const displayArticles = expanded
-    ? articles.slice(0, MAX_COUNT)
-    : articles.slice(0, INITIAL_COUNT);
-  const allRead =
-    displayArticles.length > 0 && displayArticles.every((a) => readArticleIds.has(a.id));
+  const allRead = articles.length > 0 && articles.every((a) => readArticleIds.has(a.id));
+  // 折叠态只展示前 INITIAL_COUNT 条，保证卡片高度始终固定；展开态才在滚动区内显示已加载的全部文章。
+  const displayArticles = expanded ? articles : articles.slice(0, INITIAL_COUNT);
   const cardRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
   const [lockedCardHeight, setLockedCardHeight] = useState<number | null>(null);
+  const loadingRef = useRef(false);
 
   useEffect(() => {
     if (!expanded) setLockedCardHeight(null);
@@ -71,6 +93,51 @@ export function SourceSection({ group }: SourceSectionProps) {
     return () => observer.disconnect();
   }, []);
 
+  const expandCard = useCallback(() => {
+    if (cardRef.current) {
+      setLockedCardHeight(cardRef.current.clientHeight);
+    }
+    setExpanded(true);
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingRef.current || !hasMore) return;
+    loadingRef.current = true;
+    setLoading(true);
+    try {
+      const resp = await fetch(buildGroupedUrl(source.id, offset));
+      if (!resp.ok) return;
+      const data = (await resp.json()) as ArticleGroupedBySource[];
+      const next = data[0]?.articles ?? [];
+      const more = resp.headers.get('X-Has-More') === 'true';
+      setArticles((prev) => {
+        const seen = new Set(prev.map((a) => a.id));
+        return [...prev, ...next.filter((a) => !seen.has(a.id))];
+      });
+      setOffset((o) => o + next.length);
+      setHasMore(more && next.length > 0);
+    } catch {
+      // 加载失败忽略，保留现有内容
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }, [hasMore, offset, source.id]);
+
+  // 滚动到底部自动加载下一批（无限滚动）。
+  useEffect(() => {
+    const sentinel = scrollBodyRef.current;
+    if (typeof IntersectionObserver === 'undefined' || !sentinel || !expanded) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void loadMore();
+      },
+      { root: sentinel.parentElement, threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [expanded, loadMore]);
+
   const handleReadArticle = (articleId: number) => {
     const prev = getReadArticleIds();
     if (prev.has(articleId)) return;
@@ -83,7 +150,7 @@ export function SourceSection({ group }: SourceSectionProps) {
   const handleMarkRead = () => {
     const prev = getReadArticleIds();
     const ids = new Set(prev);
-    for (const article of displayArticles) {
+    for (const article of articles) {
       ids.add(article.id);
     }
     saveReadArticleIds(ids);
@@ -91,13 +158,13 @@ export function SourceSection({ group }: SourceSectionProps) {
   };
 
   const handleShowMore = () => {
-    if (cardRef.current) {
-      setLockedCardHeight(cardRef.current.clientHeight);
-    }
-    setExpanded(true);
+    expandCard();
+    void loadMore();
   };
 
   const faviconSrc = `/api/favicon?url=${encodeURIComponent(getSourceHomepage(source.url))}`;
+
+  const showMoreVisible = hasMore && !expanded;
 
   return (
     <Card
@@ -110,7 +177,7 @@ export function SourceSection({ group }: SourceSectionProps) {
           ? { height: lockedCardHeight, display: 'flex', flexDirection: 'column' }
           : undefined
       }
-      onMouseLeave={() => expanded && setExpanded(false)}
+      onMouseLeave={() => setExpanded(false)}
     >
       <Card.Section ref={headerRef} withBorder inheritPadding py="sm" px="md">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -149,7 +216,7 @@ export function SourceSection({ group }: SourceSectionProps) {
           </Tooltip>
         </div>
       </Card.Section>
-      {articles.length === 0 ? (
+      {initialArticles.length === 0 ? (
         <Text c="dimmed" size="sm" py="sm" px="md">
           暂无最近资讯
         </Text>
@@ -163,9 +230,15 @@ export function SourceSection({ group }: SourceSectionProps) {
               onRead={handleReadArticle}
             />
           ))}
+          {expanded && hasMore && <div ref={scrollBodyRef} />}
+          {expanded && loading && (
+            <Center py={6}>
+              <Loader size={14} />
+            </Center>
+          )}
         </Stack>
       )}
-      {hasMore && !expanded && (
+      {showMoreVisible && (
         <Card.Section
           withBorder
           style={{ borderTop: 'none', cursor: 'pointer' }}

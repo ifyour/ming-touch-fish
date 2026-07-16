@@ -7,7 +7,8 @@ import { extractArticleText, extractFromHtml } from '../lib/extract';
 import { InsufficientContentError, isContentSufficient, summarizeArticle } from '../lib/summarize';
 import type { Bindings } from '../types';
 
-const ARTICLES_PER_SOURCE = 20;
+const INITIAL_PER_SOURCE = 10;
+const PAGE_SIZE = 10;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -137,8 +138,58 @@ app.get('/:id/summary', async (c) => {
   }
 });
 
+const GROUP_SELECT = {
+  id: schema.articles.id,
+  sourceId: schema.articles.sourceId,
+  title: schema.articles.title,
+  translatedTitle: schema.articles.translatedTitle,
+  url: schema.articles.url,
+  summary: schema.articles.summary,
+  publishedAt: schema.articles.publishedAt,
+  fetchedAt: schema.articles.fetchedAt,
+} as const;
+
+async function fetchSourceArticles(
+  db: ReturnType<typeof createDb>,
+  sourceId: number,
+  limit: number,
+  offset: number,
+) {
+  return db
+    .select(GROUP_SELECT)
+    .from(schema.articles)
+    .where(eq(schema.articles.sourceId, sourceId))
+    .orderBy(desc(schema.articles.publishedAt))
+    .limit(limit)
+    .offset(offset);
+}
+
 app.get('/grouped', async (c) => {
   const db = createDb(c.env.DB);
+
+  // 单源分页加载：前端点「Show more」或滚动到底部时，带上 sourceId + offset 只取该源的下一批文章。
+  // 返回结构与普通 grouped 一致（单个元素的数组），前端直接 concat 即可。
+  const sourceIdParam = c.req.query('sourceId');
+  if (sourceIdParam) {
+    const sourceId = Number(sourceIdParam);
+    if (!Number.isInteger(sourceId)) {
+      return c.json({ error: 'invalid sourceId' }, 400);
+    }
+    const offset = Math.max(0, Number(c.req.query('offset') ?? '0'));
+    const limit = Math.min(Math.max(1, Number(c.req.query('limit') ?? String(PAGE_SIZE))), 50);
+    const source = await db
+      .select()
+      .from(schema.sources)
+      .where(eq(schema.sources.id, sourceId))
+      .get();
+    if (!source) {
+      return c.json({ error: 'source not found' }, 404);
+    }
+    const articles = await fetchSourceArticles(db, sourceId, limit, offset);
+    c.header('Cache-Control', 'no-store');
+    c.header('X-Has-More', articles.length >= limit ? 'true' : 'false');
+    return c.json([{ source, articles }]);
+  }
 
   // scope=stale 仅返回较慢更新的过期源（懒加载）；其余（含默认）返回活跃源。
   const wantStale = c.req.query('scope') === 'stale';
@@ -151,6 +202,7 @@ app.get('/grouped', async (c) => {
     .select({
       source: schema.sources,
       newestMs: sql<number | null>`CAST(MAX(${schema.articles.publishedAt}) AS INTEGER) * 1000`,
+      total: sql<number>`COUNT(${schema.articles.id})`,
     })
     .from(schema.sources)
     .leftJoin(schema.articles, eq(schema.articles.sourceId, schema.sources.id))
@@ -176,34 +228,22 @@ app.get('/grouped', async (c) => {
     return c.json([]);
   }
 
-  // 逐源取「最新 ARTICLES_PER_SOURCE 篇」：每个源一次索引查询（LIMIT 20，1 个绑定参数），
+  // 逐源取「最新 INITIAL_PER_SOURCE 篇」：每个源一次索引查询（LIMIT 10，1 个绑定参数），
   // 既不走窗口函数 row_number() 的全量扫描，也不把所有文章 id 拼进一个超长 IN 列表（会触发 D1 参数上限）。
   // 源信息直接复用上面聚合得到的 sourceRows，避免每个源再发一次源查询。
+  // 首页初始只取 10 条，剩余文章由前端点「Show more」/滚动到底部时分批按需拉取，进一步压低 D1 读配额。
   const perSource = await Promise.all(
     relevantIds.map(async (sid) => {
-      const source = sourceRows.find((r) => r.source.id === sid)?.source;
-      const articles = await db
-        .select({
-          id: schema.articles.id,
-          sourceId: schema.articles.sourceId,
-          title: schema.articles.title,
-          translatedTitle: schema.articles.translatedTitle,
-          url: schema.articles.url,
-          summary: schema.articles.summary,
-          publishedAt: schema.articles.publishedAt,
-          fetchedAt: schema.articles.fetchedAt,
-        })
-        .from(schema.articles)
-        .where(eq(schema.articles.sourceId, sid))
-        .orderBy(desc(schema.articles.publishedAt))
-        .limit(ARTICLES_PER_SOURCE);
-      return { source, articles };
+      const row = sourceRows.find((r) => r.source.id === sid);
+      const source = row?.source;
+      const articles = await fetchSourceArticles(db, sid, INITIAL_PER_SOURCE, 0);
+      return { source, articles, total: Number(row?.total ?? 0) };
     }),
   );
 
   const result = perSource
     .filter((x) => x.source)
-    .map((x) => ({ source: x.source!, articles: x.articles }))
+    .map((x) => ({ source: x.source!, articles: x.articles, total: x.total }))
     .sort(
       (a, b) =>
         b.source.priority - a.source.priority ||

@@ -7,4 +7,5 @@ export interface SourceWithLastFetchCount extends Source {
 export interface ArticleGroupedBySource {
   source: Source;
   articles: Article[];
+  total: number;
 }
