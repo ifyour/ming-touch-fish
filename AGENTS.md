@@ -240,7 +240,7 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
 
 - 首页：[apps/web/app/routes/index.tsx](apps/web/app/routes/index.tsx) + `components/SourceSection.tsx`、`CompactArticleItem.tsx`
 - **首页「加载更多」折叠（懒加载）**：首页按 priority 排序展示资讯源。**过期源（最新文章 `publishedAt` 距今超过 30 天，或无文章）的判定已下移到服务端**，由 `/api/articles/grouped` 的 `scope` 参数控制：默认 `?scope=active` 只返回活跃源、`?scope=stale` 只返回过期源（较慢更新的订阅源）。首页初始只请求活跃源；底部「加载更多」按钮**仅在点击时才请求 `?scope=stale`**，把过期源查询延迟到用户真正需要时，从源头压低 D1 读配额。服务端用活跃响应头 `X-Has-Stale: true/false` 告知前端是否存在可懒加载的过期源。判定口径见 `isStaleGroup()` / `isStaleByNewestPublishedAt()`（`packages/shared/src/utils.ts`）。
-- 首页卡片每源默认展示 10 条，点击卡片内 "Show more" 最多再展开 10 条（共 20 条）；`/api/articles/grouped` 服务端逐源 `ORDER BY published_at DESC LIMIT 20` 取最新 20 条（每源一次索引查询、1 个绑定参数），避免一次性捞出全部历史文章。
+- 首页卡片每源初始展示 10 条；点击卡片内 "Show more" 或滚动到底部时，向 `/api/articles/grouped?sourceId=<id>&offset=<n>&limit=10` 发起单源分页请求取该源下一批（无限滚动），`X-Has-More: true/false` 响应头告知是否还有更多，前端直接 concat。服务端逐源 `ORDER BY published_at DESC LIMIT 10` 取最新 10 条（每源一次索引查询、1 个绑定参数），其余历史文章按需分批拉取，避免一次性捞出全部，进一步压低 D1 读配额。`/api/articles/grouped` 返回结构每个元素带 `total`（该源文章总数），前端据此判断是否仍有更多可加载。
 - 后台：[apps/web/app/routes/fish.tsx](apps/web/app/routes/fish.tsx) + `SourceForm.tsx`
 - 后台通过 `usePollingAfterFetch` hook 轮询检测 `lastFetchedAt` 变化，实现每个源独立的抓取状态追踪（转动/完成）
 - 主题在 [apps/web/app/routes/__root.tsx](apps/web/app/routes/__root.tsx) 的 `createTheme({ primaryColor: 'blue', defaultRadius: 'md' })`
@@ -257,9 +257,9 @@ curl -X POST http://localhost:3000/api/sources/<id>/fetch
   3. **回退 RSS 简介**：`metadata.description`（采集的 `summary ?? description`），同样走 `extractFromHtml()`。
   - 调 **Gemini `gemini-3.1-flash-lite`**（`generativelanguage.googleapis.com`，需环境变量 `GEMINI_API_KEY`）用固定提示词生成 50~80 字中文概述。请求带 `generationConfig.thinkingConfig.thinkingBudget: 0` 关闭思考（若该模型支持思考），避免思考 token 吃光 `maxOutputTokens` 预算导致输出被截断（`finishReason: MAX_TOKENS`，摘要只剩几个字） → 写回 `summary` 字段并返回。
   - **回退可观测性**：实时抓取失败会打 `logger.warn('文章总结实时抓取失败，回退 RSS 正文')`；最终用 RSS 回退生成时会打 `logger.info('文章总结使用 RSS 回退生成', { source: 'rss-content' | 'rss-desc' })`。所有日志带 `service: 'web-api'` 与 `articleId`，便于在 Cloudflare 控制台筛选回退占比。
-  - **正文抽取不足（三级回退后仍 < 80 字或有效字符占比 < 30%，多见于 V2EX 等 JS 渲染页 / 站点首页且 RSS 也无正文）直接返回 422 `{ error: '正文抽取不足' }`，不调 Gemini、不写库，可后续重试**；其他抽取 / 总结错误返回 500，不回退标题。注意：V2EX 等源因 fetcher 已落库 `content_rendered`，通常能在第 2 级命中，不再 422。
+  - **正文抽取不足（三级回退后仍 < 80 字或有效字符占比 < 30%，多见于 V2EX 等 JS 渲染页 / 站点首页且 RSS 也无正文）直接返回 422 `{ error: '正文抽取不足', stage, detail }`，不调 Gemini、不写库，可后续重试**；其他抽取 / 总结错误返回 500 `{ error, stage }`，不回退标题。注意：V2EX 等源因 fetcher 已落库 `content_rendered`，通常能在第 2 级命中，不再 422。`stage` 为诊断字段，标识失败所处阶段：`live`（实时抓取+Readability）、`rss-content`（回退 RSS 正文）、`rss-desc`（回退 RSS 简介）、`gemini`（调 Gemini 总结），聚合该字段可定位整条抓取流程中具体薄弱的站点/阶段。422 的 `detail` 进一步区分「各阶段均未能抽取到任何正文」与「抽取到的正文不足（字数或有效字符占比不达标）」。
   - 前端 `CompactArticleItem` 每行的 AI 图标**默认隐藏，仅 hover 标题行时淡入**（`IconSparkles`，tooltip「总结全文」）；点击抓取/读取缓存 summary 后行内展开，图标变为 `IconX`（tooltip「关闭总结」），点击即收起；**失败态同理**：返回 422/500 后行内展示错误提示，图标同样变为 `IconX`，点击收起错误提示；**不论是否已有缓存，首页刷新默认不展开任何总结**，保持干扰最小。
-- `GET /api/articles/grouped`：按源聚合文章。**支持 `scope` 查询参数**——`active`（默认）只返回「最新文章 30 天内」的活跃源，`stale` 只返回过期源。服务端先用 `GROUP BY` + `MAX(publishedAt)`（走 `articles_source_published_idx` 索引）算出每源最新发布时间做过期判定，再仅对目标源集合逐源 `ORDER BY published_at DESC LIMIT 20` 取文章（每源一次索引查询、1 个绑定参数，不走窗口函数全量扫描、也不拼超长 IN 列表触发 D1 参数上限），从源头压低 D1 读配额。活跃查询额外返回响应头 `X-Has-Stale: true/false` 指示是否存在可懒加载的过期源，并带 `Cache-Control: public, max-age=60` 边缘缓存（前端走默认缓存策略）。
+- `GET /api/articles/grouped`：按源聚合文章。**支持 `scope` 查询参数**——`active`（默认）只返回「最新文章 30 天内」的活跃源，`stale` 只返回过期源。服务端先用 `GROUP BY` + `MAX(publishedAt)`（走 `articles_source_published_idx` 索引）算出每源最新发布时间做过期判定，再仅对目标源集合逐源 `ORDER BY published_at DESC LIMIT 10` 取文章（每源一次索引查询、1 个绑定参数，不走窗口函数全量扫描、也不拼超长 IN 列表触发 D1 参数上限），从源头压低 D1 读配额。活跃查询额外返回响应头 `X-Has-Stale: true/false` 指示是否存在可懒加载的过期源，并带 `Cache-Control: public, max-age=60` 边缘缓存（前端走默认缓存策略）。返回结构每个元素带 `total`（该源文章总数）。**单源分页**：带上 `sourceId` 时进入单源模式，按 `offset`（默认 0）、`limit`（默认 10，上限 50）取该源下一批文章，返回单个元素的数组，响应头 `X-Has-More: true/false` 指示是否还有更多；前端首页「Show more」/滚动到底部时调用此模式实现无限滚动。
 
 ## 已知坑
 

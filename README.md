@@ -126,8 +126,8 @@ pnpm dev:fetcher
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/articles/grouped?scope=active\|stale` | 按源聚合文章（`active` 默认只返活跃源，`stale` 返过期源），带 `X-Has-Stale` 响应头与边缘缓存 |
-| GET | `/api/articles/:id/summary` | 文章 AI 总结（先查缓存，未命中按三级回退抽正文调 Gemini，不足返回 422） |
+| GET | `/api/articles/grouped?scope=active\|stale` | 按源聚合文章（`active` 默认只返活跃源，`stale` 返过期源），带 `X-Has-Stale` 响应头与边缘缓存；另支持 `?sourceId=&offset=&limit=` 单源分页（带 `X-Has-More` 响应头） |
+| GET | `/api/articles/:id/summary` | 文章 AI 总结（先查缓存，未命中按三级回退抽正文调 Gemini，不足返回 422 带 `stage`/`detail` 诊断字段） |
 | POST | `/api/sources/:id/fetch` | 触发单源抓取（生产走 Queue 异步，本地 `DIRECT_FETCH` 同步） |
 | POST | `/api/sources/fetch-all` | 触发全量抓取 |
 | POST | `/api/sources/detect` | 输入网址自动探测 RSS（识别 `<link rel=alternate>` 与常见 feed 路径） |
@@ -204,7 +204,7 @@ pnpm deploy:web
 
 ## 注意事项
 
-- 首页按 priority 排序展示资讯源。最新文章发布时间距今超过 30 天（或无文章）的源为「过期源」，默认收起，主网格下方的「加载更多」按钮**点击后才会按需加载**这些更新较慢的订阅源，从源头降低数据库读压力。每张卡片默认展示 10 条，点击卡片内 "Show more" 最多再展开 10 条（共 20 条）。
+- 首页按 priority 排序展示资讯源。最新文章发布时间距今超过 30 天（或无文章）的源为「过期源」，默认收起，主网格下方的「加载更多」按钮**点击后才会按需加载**这些更新较慢的订阅源，从源头降低数据库读压力。每张卡片初始展示 10 条，点击卡片内 "Show more" 或滚动到底部时向 `/api/articles/grouped?sourceId=&offset=` 拉取该源下一批（无限滚动），由 `X-Has-More` 响应头判断是否还有更多。
 - 管理后台入口为 `/fish`（首页页头 "TouchFish News" 文字连点 3 次也可进入），默认无认证，适合个人使用。如需保护，可在 Cloudflare 控制台为 Pages 域名启用 **Cloudflare Access**。
 - 后台「更新」与「更新全部」**不直接同步抓取**，而是向 Queue 投递消息，由 fetcher worker 异步消费（抓取 + DeepL 翻译 + 入库）。触发后前端约 8–10 秒自动刷新文章列表。这样设计是为了规避 Pages 函数同步执行多 UA 回退导致的 30–40 秒 pending。
 - 后台资讯源列表展示每行 ID，支持复选框多选后**批量启用 / 批量停用 / 批量删除**（删除带二次确认，相关文章随 FK cascade 一并清除）。
