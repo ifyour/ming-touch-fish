@@ -56,7 +56,7 @@ app.get('/:id/summary', async (c) => {
     return c.json({ error: 'article not found' }, 404);
   }
   if (row.summary) {
-    return c.json({ summary: row.summary, cached: true });
+    return c.json({ summary: row.summary, cached: true, stage: 'cached' as const });
   }
 
   const apiKey = c.env.GEMINI_API_KEY;
@@ -64,7 +64,7 @@ app.get('/:id/summary', async (c) => {
     return c.json({ error: 'GEMINI_API_KEY 未配置' }, 500);
   }
 
-  type Stage = 'live' | 'rss-content' | 'rss-desc' | 'browser' | 'gemini';
+  type Stage = 'live' | 'rss-content' | 'rss-desc' | 'browser' | 'gemini' | 'cached';
   let stage: Stage = 'live';
 
   const STAGE_LABEL: Record<Stage, string> = {
@@ -73,6 +73,7 @@ app.get('/:id/summary', async (c) => {
     'rss-desc': '读取 RSS 简介',
     browser: 'Browser Rendering 渲染抓取',
     gemini: '调用 Gemini 生成总结',
+    cached: '命中缓存',
   };
 
   try {
@@ -201,10 +202,13 @@ app.get('/:id/summary', async (c) => {
       logger.info('文章总结使用回退来源生成', { service: 'web-api', articleId: id, source });
     }
 
+    // 成功观测：返回实际命中正文的阶段（live / rss-content / rss-desc / browser），
+    // 与失败路径的 stage 字段保持一致口径，便于成功失败统一排查。
+    const sourceStage: Stage = source ?? 'live';
     stage = 'gemini';
     const summary = await summarizeArticle(text, apiKey);
     await db.update(schema.articles).set({ summary }).where(eq(schema.articles.id, id));
-    return c.json({ summary, cached: false });
+    return c.json({ summary, cached: false, stage: sourceStage });
   } catch (err) {
     if (err instanceof InsufficientContentError) {
       // 彻底失败：记最近失败时间，仅用于日志观测（recentlyFailed），不再据此跳过第四步。
