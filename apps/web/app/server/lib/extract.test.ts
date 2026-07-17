@@ -129,6 +129,17 @@ describe('extractArticleTextViaBrowser', () => {
     expect(msUsed).toBeNull();
   });
 
+  it('渲染结果是崩溃/错误页时抛错而非返回噪声正文', async () => {
+    mockFetch({
+      success: true,
+      result:
+        'Kaggle uses cookies from Google to deliver its services.\n\n###### Something went wrong and this page crashed!\n\nUnexpected token \'<\', "<!doctype "... is not valid JSON',
+    });
+    await expect(
+      extractArticleTextViaBrowser('token', 'acct', 'https://kaggle.com/x'),
+    ).rejects.toThrow('错误/崩溃页');
+  });
+
   it('请求携带 Bearer token 与 JSON body', async () => {
     const fetchMock = vi.fn(async () => ({
       headers: { get: () => null },
