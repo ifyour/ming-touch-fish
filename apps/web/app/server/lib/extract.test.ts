@@ -21,6 +21,39 @@ describe('extractFromHtml', () => {
   it('throws when no content can be extracted and strip fallback is disabled', () => {
     expect(() => extractFromHtml('   ', { allowStripFallback: false })).toThrow();
   });
+
+  it('优先提取 JSON-LD 的 articleBody 而非可见层', () => {
+    const html = `<html><body>
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"NewsArticle","articleBody":"这是从结构化数据拿到的完整正文内容，付费墙只遮挡了可见层。"}</script>
+      <article><p>可见层只有一句话</p></article>
+    </body></html>`;
+    const text = extractFromHtml(html);
+    expect(text).toContain('这是从结构化数据拿到的完整正文内容');
+    expect(text).not.toContain('可见层只有一句话');
+  });
+
+  it('支持 @graph 嵌套的 articleBody', () => {
+    const html = `<html><body>
+      <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage"},{"@type":"NewsArticle","articleBody":"嵌套图谱里的正文"}]}</script>
+    </body></html>`;
+    const text = extractFromHtml(html);
+    expect(text).toContain('嵌套图谱里的正文');
+  });
+
+  it('JSON-LD 缺失时不阻塞，回退到 Readability', () => {
+    const html = '<html><body><article><p>普通文章正文在这里</p></article></body></html>';
+    const text = extractFromHtml(html);
+    expect(text).toContain('普通文章正文在这里');
+  });
+
+  it('单条 JSON-LD 解析失败不影响其他脚本', () => {
+    const html = `<html><body>
+      <script type="application/ld+json">{坏掉的 json</script>
+      <script type="application/ld+json">{"articleBody":"第二条是好的正文"}</script>
+    </body></html>`;
+    const text = extractFromHtml(html);
+    expect(text).toContain('第二条是好的正文');
+  });
 });
 
 describe('extractArticleTextViaBrowser', () => {

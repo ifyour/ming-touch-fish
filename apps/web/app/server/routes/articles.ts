@@ -94,13 +94,19 @@ app.get('/:id/summary', async (c) => {
       text = null;
     }
 
-    // 2. 回退到 RSS 正文（getExtraEntryFields 采集的 content）
+    // 2. 回退到 RSS 正文：优先用 fetcher 预抽的纯文本 fullContent（直接读库，零出站），
+    // 其次回退到 RSS content HTML 现抽。
     if (!text || !isContentSufficient(text)) {
       stage = 'rss-content';
-      const content = (row.metadata as Record<string, unknown> | undefined)?.content as
-        | string
-        | undefined;
-      if (content) {
+      const meta = row.metadata as Record<string, unknown> | undefined;
+      const fullContent = meta?.fullContent as string | undefined;
+      const content = meta?.content as string | undefined;
+      if (fullContent) {
+        if (isContentSufficient(fullContent)) {
+          text = fullContent;
+          source = 'rss-content';
+        }
+      } else if (content) {
         try {
           const t = extractFromHtml(content);
           if (isContentSufficient(t)) {

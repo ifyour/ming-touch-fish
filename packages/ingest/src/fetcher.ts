@@ -2,6 +2,7 @@ import { extract, extractFromXml, type FeedData } from '@extractus/feed-extracto
 import { createDb, schema } from '@repo/db';
 import {
   BROWSER_UA,
+  extractFromHtml,
   fetchWithUA,
   isCloudflareQuotaError,
   isLatinText,
@@ -168,6 +169,22 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
       if (exists) continue;
 
       const extra = entry as Record<string, unknown>;
+      const rawContent =
+        (extra.content as string | undefined) ??
+        (extra.content_rendered as string | undefined) ??
+        (extra.description as string | undefined) ??
+        '';
+      // 入库时即把 RSS 正文抽成纯文本全文化，供总结直接读库，
+      // 避免请求时实时抓取被反爬导致 422。抽不到则留空，不影响其他字段。
+      let fullContent = '';
+      if (rawContent) {
+        try {
+          const t = extractFromHtml(rawContent);
+          if (t.trim().length >= 80) fullContent = t;
+        } catch {
+          // 抽取失败不阻塞入库
+        }
+      }
       pending.push({
         url,
         title: entry.title ?? 'Untitled',
@@ -177,11 +194,8 @@ export async function fetchAndStore(env: Env, sourceId: number): Promise<void> {
             (extra.summary as string | undefined) ??
             (extra.description as string | undefined) ??
             '',
-          content:
-            (extra.content as string | undefined) ??
-            (extra.content_rendered as string | undefined) ??
-            (extra.description as string | undefined) ??
-            '',
+          content: rawContent,
+          fullContent,
           author:
             (extra.author as string | undefined) ?? (extra.creator as string | undefined) ?? '',
           categories: Array.isArray(extra.categories) ? extra.categories : [],
