@@ -127,7 +127,7 @@ pnpm dev:fetcher
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/articles/grouped?scope=active\|stale` | 按源聚合文章（`active` 默认只返活跃源，`stale` 返过期源），带 `X-Has-Stale` 响应头与边缘缓存；另支持 `?sourceId=&offset=&limit=` 单源分页（带 `X-Has-More` 响应头） |
-| GET | `/api/articles/:id/summary` | 文章 AI 总结（先查缓存，未命中按三级回退抽正文调 Gemini，不足返回 422 带 `stage`/`detail` 诊断字段） |
+| GET | `/api/articles/:id/summary` | 文章 AI 总结（先查缓存，未命中按四级回退抽正文调 Gemini，不足返回 422 带 `stage`/`detail` 诊断字段） |
 | POST | `/api/sources/:id/fetch` | 触发单源抓取（生产走 Queue 异步，本地 `DIRECT_FETCH` 同步） |
 | POST | `/api/sources/fetch-all` | 触发全量抓取 |
 | POST | `/api/sources/detect` | 输入网址自动探测 RSS（识别 `<link rel=alternate>` 与常见 feed 路径） |
@@ -209,6 +209,7 @@ pnpm deploy:web
 - 后台「更新」与「更新全部」**不直接同步抓取**，而是向 Queue 投递消息，由 fetcher worker 异步消费（抓取 + DeepL 翻译 + 入库）。触发后前端约 8–10 秒自动刷新文章列表。这样设计是为了规避 Pages 函数同步执行多 UA 回退导致的 30–40 秒 pending。
 - 后台资讯源列表展示每行 ID，支持复选框多选后**批量启用 / 批量停用 / 批量删除**（删除带二次确认，相关文章随 FK cascade 一并清除）。
 - DeepL 免费版每月 50 万字符额度；若翻译调用频繁，可关注用量或关闭部分英文源的自动翻译。翻译失败时返回 `null`，前端自动回退显示原标题。
+- 文章 AI 总结的第四层正文兜底依赖 Cloudflare **Browser Run REST API**（非 Pages 绑定，因 Pages Functions 不支持 Browser 绑定）。需在 Pages 项目配置两个 secret：`CLOUDFLARE_API_TOKEN`（带 `Browser Rendering - Edit` 权限）和 `CLOUDFLARE_ACCOUNT_ID`。Free 计划每天 10 分钟浏览器时长免费，超出仅限流不扣费。未配置这两个变量时第四层自动跳过，不影响其他三级回退。
 - Queue 消费失败会自动重试 3 次（配额类错误直接 ack 不重试），可在 Workers 日志中查看错误详情。
 
 ## 已知坑

@@ -3,12 +3,13 @@ import { STALE_GROUP_DAYS } from '@repo/shared';
 import { logger } from '@repo/telemetry';
 import { desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { extractArticleText, extractFromHtml } from '../lib/extract';
+import { extractArticleText, extractArticleTextViaBrowser, extractFromHtml } from '../lib/extract';
 import { InsufficientContentError, isContentSufficient, summarizeArticle } from '../lib/summarize';
 import type { Bindings } from '../types';
 
 const INITIAL_PER_SOURCE = 10;
 const PAGE_SIZE = 10;
+const SUMMARY_FAIL_TTL = 24 * 60 * 60 * 1000;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -63,19 +64,20 @@ app.get('/:id/summary', async (c) => {
     return c.json({ error: 'GEMINI_API_KEY 未配置' }, 500);
   }
 
-  type Stage = 'live' | 'rss-content' | 'rss-desc' | 'gemini';
+  type Stage = 'live' | 'rss-content' | 'rss-desc' | 'browser' | 'gemini';
   let stage: Stage = 'live';
 
   const STAGE_LABEL: Record<Stage, string> = {
     live: '实时抓取文章页',
     'rss-content': '读取 RSS 正文',
     'rss-desc': '读取 RSS 简介',
+    browser: 'Browser Rendering 渲染抓取',
     gemini: '调用 Gemini 生成总结',
   };
 
   try {
     let text: string | null = null;
-    let source: 'live' | 'rss-content' | 'rss-desc' | null = null;
+    let source: 'live' | 'rss-content' | 'rss-desc' | 'browser' | null = null;
 
     // 1. 直接抓取文章 URL → Readability（取不到正文会抛错，交由下方 RSS 回退）
     try {
@@ -130,6 +132,47 @@ app.get('/:id/summary', async (c) => {
       }
     }
 
+    // 4. 第四层：Browser Rendering 真浏览器渲染（治「实时抓取被反爬但内容免费」的源）。
+    // 触发条件：前三级全失败 + 配置了 CLOUDFLARE_API_TOKEN/ACCOUNT_ID + 未在失败缓存期（见下）时触发。
+    // 注：Pages Functions 不支持 Browser 绑定，改用 Browser Run REST API（free 计划每天 10 分钟，超出仅限流不扣费）。
+    if (
+      (!text || !isContentSufficient(text)) &&
+      c.env.CLOUDFLARE_API_TOKEN &&
+      c.env.CLOUDFLARE_ACCOUNT_ID
+    ) {
+      const meta = row.metadata as Record<string, unknown> | undefined;
+      const failedAt = meta?.summaryFailedAt as number | undefined;
+      const recentlyFailed =
+        typeof failedAt === 'number' && Date.now() - failedAt < SUMMARY_FAIL_TTL;
+      if (!recentlyFailed) {
+        try {
+          stage = 'browser';
+          const { text: t, msUsed } = await extractArticleTextViaBrowser(
+            c.env.CLOUDFLARE_API_TOKEN,
+            c.env.CLOUDFLARE_ACCOUNT_ID,
+            row.url,
+          );
+          if (isContentSufficient(t)) {
+            text = t;
+            source = 'browser';
+            logger.info('文章总结使用 Browser Rendering 生成', {
+              service: 'web-api',
+              articleId: id,
+              source: 'browser',
+              browserMsUsed: msUsed,
+            });
+          }
+        } catch (err) {
+          logger.warn('文章总结 Browser Rendering 抓取失败', {
+            service: 'web-api',
+            articleId: id,
+            stage,
+            error: err instanceof Error ? err.message : err,
+          });
+        }
+      }
+    }
+
     if (!text || !isContentSufficient(text)) {
       const reason =
         !text || text.trim().length === 0
@@ -139,7 +182,7 @@ app.get('/:id/summary', async (c) => {
     }
 
     if (source !== 'live') {
-      logger.info('文章总结使用 RSS 回退生成', { service: 'web-api', articleId: id, source });
+      logger.info('文章总结使用回退来源生成', { service: 'web-api', articleId: id, source });
     }
 
     stage = 'gemini';
@@ -148,7 +191,13 @@ app.get('/:id/summary', async (c) => {
     return c.json({ summary, cached: false });
   } catch (err) {
     if (err instanceof InsufficientContentError) {
-      logger.warn('文章总结三级回退均失败', { service: 'web-api', articleId: id, stage });
+      // 彻底失败：写失败缓存，24h 内不再触发第四层浏览器渲染（自适应处理不可抓源）。
+      const prevMeta = (row.metadata as Record<string, unknown> | undefined) ?? {};
+      await db
+        .update(schema.articles)
+        .set({ metadata: { ...prevMeta, summaryFailedAt: Date.now() } })
+        .where(eq(schema.articles.id, id));
+      logger.warn('文章总结四级回退均失败', { service: 'web-api', articleId: id, stage });
       return c.json(
         {
           error: '文章正文获取失败，暂时无法生成总结',

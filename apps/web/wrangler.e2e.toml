@@ -13,3 +13,8 @@ migrations_dir = "../packages/db/migrations"
 [[queues.producers]]
 binding = "NEWS_QUEUE"
 queue = "news-fetch-queue"
+
+[vars]
+CLOUDFLARE_API_TOKEN = "e2e-test-token"
+CLOUDFLARE_ACCOUNT_ID = "e2e-test-account"
+GEMINI_API_KEY = "e2e-test-gemini"

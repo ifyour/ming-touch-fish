@@ -4,6 +4,8 @@ import type { QueueMessage } from '@repo/shared';
 export interface Bindings {
   DB: D1Database;
   NEWS_QUEUE: Queue<QueueMessage>;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
   DIRECT_FETCH?: string;
   DEEPL_API_KEY?: string;
   FIRECRAWL_API_KEY?: string;
