@@ -90,7 +90,7 @@ describe('extractArticleTextViaBrowser', () => {
       'https://api.cloudflare.com/client/v4/accounts/acct-1/browser-rendering/markdown',
     );
     expect(init.method).toBe('POST');
-    expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer my-token');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer my-token');
     expect(JSON.parse(init.body as string)).toMatchObject({
       url: 'https://x.test/p',
       gotoOptions: { waitUntil: 'networkidle2', timeout: 30000 },
