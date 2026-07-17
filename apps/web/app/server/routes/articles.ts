@@ -133,8 +133,9 @@ app.get('/:id/summary', async (c) => {
     }
 
     // 4. 第四层：Browser Rendering 真浏览器渲染（治「实时抓取被反爬但内容免费」的源）。
-    // 触发条件：前三级全失败 + 配置了 CLOUDFLARE_API_TOKEN/ACCOUNT_ID + 未在失败缓存期（见下）时触发。
-    // 注：Pages Functions 不支持 Browser 绑定，改用 Browser Run REST API（free 计划每天 10 分钟，超出仅限流不扣费）。
+    // 触发条件：前三级全失败 + 配置了 CLOUDFLARE_API_TOKEN/ACCOUNT_ID 时每次都尝试。
+    // 注：Pages Functions 不支持 Browser 绑定，改用 Browser Run REST API（free 计划每天 10 分钟，超出仅限流不扣费，不影响其他功能）。
+    // 不跳过：即便该文章近期失败过也仍尝试，超出免费额度仅返回限流错误，无实质影响；每次进入均记日志以保证观测性。
     if (
       (!text || !isContentSufficient(text)) &&
       c.env.CLOUDFLARE_API_TOKEN &&
@@ -144,32 +145,41 @@ app.get('/:id/summary', async (c) => {
       const failedAt = meta?.summaryFailedAt as number | undefined;
       const recentlyFailed =
         typeof failedAt === 'number' && Date.now() - failedAt < SUMMARY_FAIL_TTL;
-      if (!recentlyFailed) {
-        try {
-          stage = 'browser';
-          const { text: t, msUsed } = await extractArticleTextViaBrowser(
-            c.env.CLOUDFLARE_API_TOKEN,
-            c.env.CLOUDFLARE_ACCOUNT_ID,
-            row.url,
-          );
-          if (isContentSufficient(t)) {
-            text = t;
-            source = 'browser';
-            logger.info('文章总结使用 Browser Rendering 生成', {
-              service: 'web-api',
-              articleId: id,
-              source: 'browser',
-              browserMsUsed: msUsed,
-            });
-          }
-        } catch (err) {
-          logger.warn('文章总结 Browser Rendering 抓取失败', {
+      logger.info('文章总结进入 Browser Rendering 第四步', {
+        service: 'web-api',
+        articleId: id,
+        url: row.url,
+        recentlyFailed,
+      });
+      try {
+        stage = 'browser';
+        const { text: t, msUsed } = await extractArticleTextViaBrowser(
+          c.env.CLOUDFLARE_API_TOKEN,
+          c.env.CLOUDFLARE_ACCOUNT_ID,
+          row.url,
+        );
+        if (isContentSufficient(t)) {
+          text = t;
+          source = 'browser';
+          logger.info('文章总结使用 Browser Rendering 生成', {
             service: 'web-api',
             articleId: id,
-            stage,
-            error: err instanceof Error ? err.message : err,
+            source: 'browser',
+            browserMsUsed: msUsed,
+          });
+        } else {
+          logger.warn('文章总结 Browser Rendering 未取到充足正文', {
+            service: 'web-api',
+            articleId: id,
           });
         }
+      } catch (err) {
+        logger.warn('文章总结 Browser Rendering 抓取失败', {
+          service: 'web-api',
+          articleId: id,
+          stage,
+          error: err instanceof Error ? err.message : err,
+        });
       }
     }
 
@@ -191,7 +201,7 @@ app.get('/:id/summary', async (c) => {
     return c.json({ summary, cached: false });
   } catch (err) {
     if (err instanceof InsufficientContentError) {
-      // 彻底失败：写失败缓存，24h 内不再触发第四层浏览器渲染（自适应处理不可抓源）。
+      // 彻底失败：记最近失败时间，仅用于日志观测（recentlyFailed），不再据此跳过第四步。
       const prevMeta = (row.metadata as Record<string, unknown> | undefined) ?? {};
       await db
         .update(schema.articles)
