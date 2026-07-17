@@ -124,19 +124,14 @@ export function SourceSection({ group }: SourceSectionProps) {
     }
   }, [hasMore, offset, source.id]);
 
-  // 滚动到底部自动加载下一批（无限滚动）。
-  useEffect(() => {
-    const sentinel = scrollBodyRef.current;
-    if (typeof IntersectionObserver === 'undefined' || !sentinel || !expanded) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) void loadMore();
-      },
-      { root: sentinel.parentElement, threshold: 0 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [expanded, loadMore]);
+  // 滚动容器内滚到底部时触发加载（替代零高度 sentinel 的 IntersectionObserver，更可靠）。
+  const handleScroll = useCallback(() => {
+    const el = scrollBodyRef.current;
+    if (!el || !hasMore || loadingRef.current) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+      void loadMore();
+    }
+  }, [hasMore, loadMore]);
 
   const handleReadArticle = (articleId: number) => {
     const prev = getReadArticleIds();
@@ -221,7 +216,12 @@ export function SourceSection({ group }: SourceSectionProps) {
           暂无最近资讯
         </Text>
       ) : (
-        <Stack gap={0} style={expanded ? { flex: 1, overflowY: 'auto', minHeight: 0 } : undefined}>
+        <Stack
+          ref={scrollBodyRef}
+          gap={0}
+          onScroll={handleScroll}
+          style={expanded ? { flex: 1, overflowY: 'auto', minHeight: 0 } : undefined}
+        >
           {displayArticles.map((article) => (
             <CompactArticleItem
               key={article.id}
@@ -230,7 +230,6 @@ export function SourceSection({ group }: SourceSectionProps) {
               onRead={handleReadArticle}
             />
           ))}
-          {expanded && hasMore && <div ref={scrollBodyRef} />}
           {expanded && loading && (
             <Center py={6}>
               <Loader size={14} />
