@@ -54,6 +54,27 @@ describe('extractFromHtml', () => {
     const text = extractFromHtml(html);
     expect(text).toContain('第二条是好的正文');
   });
+
+  it('JS 渲染页（SPA）的脚本壳被剔除，实时抓取模式应抛错而非返回噪声', () => {
+    const html = `<!DOCTYPE html><html><head><title>Measuring Progress Toward AGI | Kaggle</title></head>
+      <body>
+        <script>window["pageRequestStartTime"] = 1784307427102; window.KAGGLE = {}; try{(function(a,s,y,n,c){var d=s.createElement("style");})()}</script>
+        <script>window.initialData = JSON.parse('{"foo":1}'); document.getElementById("x").addEventListener("load",function(){});</script>
+      </body></html>`;
+    // 实时抓取关闭兜底：脚本壳被剔除后无可见正文，应抛错交由 RSS 回退，避免喂垃圾给 LLM
+    expect(() => extractFromHtml(html, { allowStripFallback: false })).toThrow();
+  });
+
+  it('SPA 壳被剔除后若仍有可见正文，应只返回可见正文', () => {
+    const html = `<html><body>
+      <script>window.x = 1; function bootstrap(){ JSON.parse('{}'); }</script>
+      <article><p>这是页面上真实可见的文章正文内容</p></article>
+    </body></html>`;
+    const text = extractFromHtml(html);
+    expect(text).toContain('这是页面上真实可见的文章正文内容');
+    expect(text).not.toContain('window.x');
+    expect(text).not.toContain('JSON.parse');
+  });
 });
 
 describe('extractArticleTextViaBrowser', () => {
