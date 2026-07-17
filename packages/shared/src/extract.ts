@@ -61,29 +61,32 @@ export function extractFromHtml(html: string, opts: { allowStripFallback?: boole
   if (jsonLd) return jsonLd;
 
   // 剔除 JS/样式块：JS 渲染页（SPA）的正文全靠前端脚本，服务端 HTML 里的
-  // <script> 仅含 bootstrap/JSON 噪声。若不剔除，Readability/去标签会把脚本壳
-  // 当正文喂给 LLM，生成「页面崩溃/JSON 解析错误」之类的幻觉并污染缓存。
-  // 用正则移除所有 <script>/<style> 块（JSON-LD 已被上面的 extractJsonLd 单独消费，
-  // 此处无需保留），避免依赖 querySelectorAll(':not()') 在不同运行时（workerd vs Node）的兼容性差异。
-  const cleaned = html
+  // <script> 仅含 bootstrap/JSON 噪声。若不剔除，Readability 会把脚本壳当正文。
+  // 只移除 <script>/<style> 块、保留其余标签，让 Readability 在真实 DOM 上解析；
+  // 若一并去标签成纯文本再喂给 Readability，linkedom 解析出的 documentElement 为
+  // null，Readability 会直接抛错，导致所有 live 实时抓取的正文抽取失效。
+  const domHtml = html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ');
 
   // 其次用 Readability（在剔除脚本后的 DOM 上效果最好）
   try {
-    const { document } = parseHTML(cleaned);
-    if (document?.body) {
+    const { document } = parseHTML(domHtml);
+    if (document?.documentElement) {
       const article = new Readability(document as unknown as Document).parse();
-      if (article?.textContent) {
+      if (article?.textContent?.trim()) {
         return article.textContent.trim().slice(0, MAX_CHARS);
       }
     }
   } catch {
-    // Readability 对纯文本抛异常，走下方保底
+    // Readability 解析失败，走下方保底
   }
+
+  // 保底用：剔除脚本/样式后的可见纯文本（仅用于 RSS 片段等本就无完整 DOM 的场景）
+  const cleaned = domHtml
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   // 实时抓取的页面若 Readability 取不到正文，应抛错交由 RSS 回退，
   // 否则去标签兜底会把 JS 渲染页的 shell 当正文，绕过 RSS 回退并缓存垃圾。

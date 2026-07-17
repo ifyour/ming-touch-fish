@@ -221,3 +221,4 @@ pnpm deploy:web
 - **静态资源目录唯一**：favicon.svg / logo.svg / `_headers` 只放在 `apps/web/public/`，根目录 `public/` 已删除（历史上二者重复，改根目录的不会生效）。构建与部署以 `apps/web/public/` 为准。
 - **favicon 缓存**：`apps/web/public/_headers` 已对 favicon.svg / logo.svg 设置 7 天边缘缓存（`stale-while-revalidate` 30 天），改动 favicon 后注意缓存生效延迟。
 - **构建产物**：`app.config.timestamp_*.js` 是 Vinxi 构建产物，已在 `.gitignore`，忽略即可。
+- **正文抽取逻辑改动要实测**：文章总结（`/api/articles/:id/summary`）第 1 级 live 抓取依赖 `@mozilla/readability` 在真实 DOM 上抽取。曾有 bug 把整段 HTML 先去标签成纯文本再喂 Readability，导致 `documentElement` 为 null、Readability 静默抛错，所有 live 抓取失效并一路退到 Browser Rendering。改动 `packages/shared/src/extract.ts` 后，务必用带正文的文章页（如煎蛋 `https://jandan.net/p/xxxx`）实测第 1 级能抽出 ≥80 字正文。详见 AGENTS.md 正文抽取约束与已知坑。
