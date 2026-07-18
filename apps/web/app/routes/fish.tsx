@@ -62,6 +62,7 @@ function usePollingAfterFetch(
   queryClient: ReturnType<typeof useQueryClient>,
   _sources: SourceWithLastFetchCount[] | undefined,
   onSourceComplete: (id: number, newLastFetchedAt: Date) => void,
+  onTimeout: (ids: number[]) => void,
 ) {
   const [polling, setPolling] = useState(false);
   const snapshotRef = useRef<Map<number, string>>(new Map());
@@ -80,6 +81,11 @@ function usePollingAfterFetch(
         if (targets.includes(s.id)) {
           snapshot.set(s.id, toKey(s.lastFetchedAt));
         }
+      }
+      // 刚新增的源可能尚未进入 sources 缓存，这里用空串占位，
+      // 待轮询拿到真实 lastFetchedAt 后触发完成判定，避免图标一直转。
+      for (const id of targets) {
+        if (!snapshot.has(id)) snapshot.set(id, '');
       }
       snapshotRef.current = snapshot;
       setPolling(true);
@@ -115,6 +121,10 @@ function usePollingAfterFetch(
       if (snapshotRef.current.size === 0 || attempts >= maxAttempts) {
         clearInterval(interval);
         setPolling(false);
+        if (attempts >= maxAttempts) {
+          // 超时仍未检测到完成，清理残留的拉取状态，避免图标一直转
+          onTimeout(Array.from(snapshotRef.current.keys()));
+        }
         invalidateGrouped(queryClient);
       }
     }, 1500);
@@ -305,7 +315,20 @@ function AdminPage() {
     );
   }, []);
 
-  const { startPolling } = usePollingAfterFetch(queryClient, sources, removeFetchingId);
+  const clearFetchingIds = useCallback((ids: number[]) => {
+    setFetchingIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const { startPolling } = usePollingAfterFetch(
+    queryClient,
+    sources,
+    removeFetchingId,
+    clearFetchingIds,
+  );
 
   const [sortedSources, setSortedSources] = useState<SourceWithLastFetchCount[]>(
     () => sources ?? [],
@@ -497,7 +520,6 @@ function AdminPage() {
       );
     },
     onSuccess: () => {
-      invalidateGrouped(queryClient);
       invalidateGrouped(queryClient);
       notifications.show({
         title: '成功',
