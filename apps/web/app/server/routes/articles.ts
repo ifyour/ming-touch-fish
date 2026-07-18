@@ -3,13 +3,21 @@ import { STALE_GROUP_DAYS } from '@repo/shared';
 import { logger } from '@repo/telemetry';
 import { desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { extractArticleText, extractArticleTextViaBrowser, extractFromHtml } from '../lib/extract';
+import {
+  extractArticleText,
+  extractArticleTextViaBrowser,
+  extractFromHtml,
+  looksLikeErrorPage,
+} from '../lib/extract';
 import { InsufficientContentError, isContentSufficient, summarizeArticle } from '../lib/summarize';
 import type { Bindings } from '../types';
 
 const INITIAL_PER_SOURCE = 10;
 const PAGE_SIZE = 10;
 const SUMMARY_FAIL_TTL = 24 * 60 * 60 * 1000;
+// live 抓取稳定失败时，短时跳过 live 直接走后续回退（避免每次都花 10~20s 出站抓取）。
+// 短于 browser 失败缓存：live 失败可能是临时抖动，不应长期跳过。
+const LIVE_FAIL_TTL = 60 * 60 * 1000;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -79,34 +87,25 @@ app.get('/:id/summary', async (c) => {
   try {
     let text: string | null = null;
     let source: 'live' | 'rss-content' | 'rss-desc' | 'browser' | null = null;
+    // 各阶段耗时（毫秒），用于成功/失败统一观测瓶颈。
+    const stageMs: Record<string, number> = {};
+    const meta = row.metadata as Record<string, unknown> | undefined;
 
-    // 1. 直接抓取文章 URL → Readability（取不到正文会抛错，交由下方 RSS 回退）
-    try {
-      stage = 'live';
-      text = await extractArticleText(row.url);
-      source = 'live';
-    } catch (err) {
-      logger.warn('文章总结实时抓取失败，回退 RSS 正文', {
-        service: 'web-api',
-        articleId: id,
-        stage,
-        error: err instanceof Error ? err.message : err,
-      });
-      text = null;
-    }
+    // 阶段顺序优化：先读库（零出站、零延迟、必中），再 live 抓页（最慢最贵），
+    // 最后才用 browser（最贵）。fetcher 入库时已经预抽好 fullContent，质量等同
+    // 最佳来源，绝大多数请求在第一步即可命中，避免每次总结都发起 10~20s 出站抓取。
 
-    // 2. 回退到 RSS 正文：优先用 fetcher 预抽的纯文本 fullContent（直接读库，零出站），
-    // 其次回退到 RSS content HTML 现抽。
-    if (!text || !isContentSufficient(text)) {
+    // 1. 读库预抽正文（fetcher 落库的纯文本 fullContent，优先；其次原始 content HTML 现抽）。
+    // 这步零出站，是性价比最高的来源。
+    {
+      const t0 = Date.now();
       stage = 'rss-content';
-      const meta = row.metadata as Record<string, unknown> | undefined;
       const fullContent = meta?.fullContent as string | undefined;
       const content = meta?.content as string | undefined;
       if (fullContent) {
-        if (isContentSufficient(fullContent)) {
-          text = fullContent;
-          source = 'rss-content';
-        }
+        // fullContent 已是 fetcher 用 isContentSufficient 校验过 ≥80 字的结果，直接采用。
+        text = fullContent;
+        source = 'rss-content';
       } else if (content) {
         try {
           const t = extractFromHtml(content);
@@ -115,17 +114,63 @@ app.get('/:id/summary', async (c) => {
             source = 'rss-content';
           }
         } catch {
-          // 正文不足，回退下一级
+          // 正文不足，走下一级
+        }
+      }
+      stageMs.rssContent = Date.now() - t0;
+    }
+
+    // 2. 实时抓取文章页 → Readability（最慢、最易被反爬，仅在前一步未命中时才跑）。
+    // live 稳定失败（被反爬/超时）时记短 TTL，下次直接跳过本步走后续回退，避免重复浪费。
+    if (!text || !isContentSufficient(text)) {
+      const liveFailedAt = meta?.liveFailedAt as number | undefined;
+      const liveRecentlyFailed =
+        typeof liveFailedAt === 'number' && Date.now() - liveFailedAt < LIVE_FAIL_TTL;
+      if (liveRecentlyFailed) {
+        logger.info('文章总结跳过 live（近期失败缓存命中）', {
+          service: 'web-api',
+          articleId: id,
+          url: row.url,
+        });
+      } else {
+        const t0 = Date.now();
+        stage = 'live';
+        try {
+          const liveText = await extractArticleText(row.url);
+          // 反爬/拦截页识别：抓到挑战页（"请启用 JavaScript" 等）时文本可能 ≥80 字但无意义，
+          // 当成正文会喂给 Gemini 生成幻觉总结并污染缓存，故视为无效回退下一级。
+          if (looksLikeErrorPage(liveText)) {
+            throw new Error('live 抓到反爬/拦截页，非正文');
+          }
+          text = liveText;
+          source = 'live';
+        } catch (err) {
+          const took = Date.now() - t0;
+          stageMs.live = took;
+          logger.warn('文章总结实时抓取失败，回退 RSS 简介', {
+            service: 'web-api',
+            articleId: id,
+            stage,
+            ms: took,
+            error: err instanceof Error ? err.message : err,
+          });
+          // 记 live 失败时间，短时跳过（临时抖动不应长期跳过，故 TTL 较短）。
+          const prevMeta = meta ?? {};
+          await db
+            .update(schema.articles)
+            .set({ metadata: { ...prevMeta, liveFailedAt: Date.now() } })
+            .where(eq(schema.articles.id, id));
+          text = null;
         }
       }
     }
 
-    // 3. 回退到 RSS 简介（description / 摘要）
+    // 3. 回退 RSS 简介（description / 摘要）。与第 1 级同属「读库现抽」，合并判断仅保留阶段标签，
+    // 不再单独消耗一次独立阶段逻辑。
     if (!text || !isContentSufficient(text)) {
+      const t0 = Date.now();
       stage = 'rss-desc';
-      const desc = (row.metadata as Record<string, unknown> | undefined)?.description as
-        | string
-        | undefined;
+      const desc = meta?.description as string | undefined;
       if (desc) {
         try {
           const t = extractFromHtml(desc);
@@ -137,18 +182,17 @@ app.get('/:id/summary', async (c) => {
           // 正文不足
         }
       }
+      stageMs.rssDesc = Date.now() - t0;
     }
 
     // 4. 第四层：Browser Rendering 真浏览器渲染（治「实时抓取被反爬但内容免费」的源）。
-    // 触发条件：前三级全失败 + 配置了 CLOUDFLARE_API_TOKEN/ACCOUNT_ID 时每次都尝试。
+    // 触发条件：前三层全失败 + 配置了 CLOUDFLARE_API_TOKEN/ACCOUNT_ID 时每次都尝试。
     // 注：Pages Functions 不支持 Browser 绑定，改用 Browser Run REST API（free 计划每天 10 分钟，超出仅限流不扣费，不影响其他功能）。
-    // 不跳过：即便该文章近期失败过也仍尝试，超出免费额度仅返回限流错误，无实质影响；每次进入均记日志以保证观测性。
     if (
       (!text || !isContentSufficient(text)) &&
       c.env.CLOUDFLARE_API_TOKEN &&
       c.env.CLOUDFLARE_ACCOUNT_ID
     ) {
-      const meta = row.metadata as Record<string, unknown> | undefined;
       const failedAt = meta?.summaryFailedAt as number | undefined;
       const recentlyFailed =
         typeof failedAt === 'number' && Date.now() - failedAt < SUMMARY_FAIL_TTL;
@@ -158,6 +202,7 @@ app.get('/:id/summary', async (c) => {
         url: row.url,
         recentlyFailed,
       });
+      const t0 = Date.now();
       try {
         stage = 'browser';
         const { text: t, msUsed } = await extractArticleTextViaBrowser(
@@ -188,6 +233,7 @@ app.get('/:id/summary', async (c) => {
           error: err instanceof Error ? err.message : err,
         });
       }
+      stageMs.browser = Date.now() - t0;
     }
 
     if (!text || !isContentSufficient(text)) {
@@ -203,12 +249,12 @@ app.get('/:id/summary', async (c) => {
     }
 
     // 成功观测：返回实际命中正文的阶段（live / rss-content / rss-desc / browser），
-    // 与失败路径的 stage 字段保持一致口径，便于成功失败统一排查。
+    // 与失败路径的 stage 字段保持一致口径，并附各阶段耗时便于排查瓶颈。
     const sourceStage: Stage = source ?? 'live';
     stage = 'gemini';
     const summary = await summarizeArticle(text, apiKey);
     await db.update(schema.articles).set({ summary }).where(eq(schema.articles.id, id));
-    return c.json({ summary, cached: false, stage: sourceStage });
+    return c.json({ summary, cached: false, stage: sourceStage, stageMs });
   } catch (err) {
     if (err instanceof InsufficientContentError) {
       // 彻底失败：记最近失败时间，仅用于日志观测（recentlyFailed），不再据此跳过第四步。

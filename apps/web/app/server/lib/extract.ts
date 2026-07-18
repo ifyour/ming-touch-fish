@@ -13,6 +13,8 @@ export interface BrowserExtractResult {
   msUsed: number | null;
 }
 
+export { ERROR_PAGE_MARKERS, looksLikeErrorPage };
+
 export async function extractArticleTextViaBrowser(
   apiToken: string,
   accountId: string,
@@ -27,7 +29,9 @@ export async function extractArticleTextViaBrowser(
     },
     body: JSON.stringify({
       url,
-      gotoOptions: { waitUntil: 'networkidle2', timeout: 30000 },
+      // 正文 markdown 提取不需要等所有异步资源：networkidle2 对挂满广告/追踪脚本的站点
+      // 会等很久，吃 Browser 免费时长（每天 10 分钟）。改 load + 较短超时即足够。
+      gotoOptions: { waitUntil: 'load', timeout: 15000 },
     }),
   });
   const msUsedHeader = resp.headers.get('X-Browser-Ms-Used');

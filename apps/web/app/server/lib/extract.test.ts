@@ -158,7 +158,7 @@ describe('extractArticleTextViaBrowser', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer my-token');
     expect(JSON.parse(init.body as string)).toMatchObject({
       url: 'https://x.test/p',
-      gotoOptions: { waitUntil: 'networkidle2', timeout: 30000 },
+      gotoOptions: { waitUntil: 'load', timeout: 15000 },
     });
   });
 });
