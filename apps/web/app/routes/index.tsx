@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { SourceSection } from '../components/SourceSection.js';
 import type { ArticleGroupedBySource } from '../types/api';
 import { getApiUrl } from '../utils/apiUrl.js';
+import { getGroupedBust } from '../utils/groupedBust.js';
 
 export const Route = createFileRoute('/')({
   component: HomePage,
@@ -33,8 +34,11 @@ interface GroupedResult {
 }
 
 async function fetchGroupedArticles(scope: 'active' | 'stale'): Promise<GroupedResult> {
-  // 用默认缓存策略，让 Cloudflare 边缘按响应 Cache-Control 命中 60s 缓存，降低 D1 读压力。
-  const response = await fetch(await getApiUrl(`/api/articles/grouped?scope=${scope}`));
+  // 后台操作后前端会 bump groupedBust，携带该 token 使 URL 不同、穿透边缘长缓存立即拿到最新数据；
+  // 普通刷新浏览（token 为 0）不附加，继续命中边缘缓存以降低 D1 读压力。
+  const bust = getGroupedBust();
+  const url = `/api/articles/grouped?scope=${scope}${bust ? `&bust=${bust}` : ''}`;
+  const response = await fetch(await getApiUrl(url));
   if (!response.ok) {
     throw new Error('Failed to load articles');
   }

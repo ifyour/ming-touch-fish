@@ -48,6 +48,15 @@ import { z } from 'zod';
 import { SourceForm } from '../components/SourceForm.js';
 import type { SourceWithLastFetchCount } from '../types/api';
 import { getApiUrl } from '../utils/apiUrl.js';
+import { bumpGroupedBust } from '../utils/groupedBust.js';
+
+// 后台增删改源/手动抓取成功后调用：bump 使下次 grouped 请求穿透边缘长缓存，
+// 再 invalidate 触发前台立即重新拉取，操作者无需等缓存过期即可看到效果。
+function invalidateGrouped(queryClient: ReturnType<typeof useQueryClient>): void {
+  bumpGroupedBust();
+  queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
+  queryClient.invalidateQueries({ queryKey: ['sources'] });
+}
 
 function usePollingAfterFetch(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -106,7 +115,7 @@ function usePollingAfterFetch(
       if (snapshotRef.current.size === 0 || attempts >= maxAttempts) {
         clearInterval(interval);
         setPolling(false);
-        queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
+        invalidateGrouped(queryClient);
       }
     }, 1500);
 
@@ -326,7 +335,7 @@ function AdminPage() {
       return res.json() as Promise<Source>;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      invalidateGrouped(queryClient);
       closeForm();
       notifications.show({
         title: '成功',
@@ -356,7 +365,7 @@ function AdminPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      invalidateGrouped(queryClient);
       closeForm();
       notifications.show({
         title: '成功',
@@ -383,7 +392,7 @@ function AdminPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      invalidateGrouped(queryClient);
       notifications.show({
         title: '成功',
         message: '资讯源已删除',
@@ -435,7 +444,7 @@ function AdminPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      invalidateGrouped(queryClient);
     },
     onError: (err: Error) => {
       notifications.show({ title: '失败', message: err.message, color: 'red' });
@@ -464,7 +473,7 @@ function AdminPage() {
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      invalidateGrouped(queryClient);
       notifications.show({
         title: '成功',
         message: '已批量更新启用状态',
@@ -488,8 +497,8 @@ function AdminPage() {
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
-      queryClient.invalidateQueries({ queryKey: ['articles', 'grouped'] });
+      invalidateGrouped(queryClient);
+      invalidateGrouped(queryClient);
       notifications.show({
         title: '成功',
         message: '已批量删除选中资讯源',
@@ -566,7 +575,7 @@ function AdminPage() {
       setFetchingIds((prev) => new Set(prev).add(id));
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      invalidateGrouped(queryClient);
       startPolling([variables]);
     },
     onError: (err: Error, id) => {
@@ -594,7 +603,7 @@ function AdminPage() {
       }
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
+      invalidateGrouped(queryClient);
       const count = data.queued ?? data.fetched ?? 0;
       notifications.show({
         title: '已加入更新队列',

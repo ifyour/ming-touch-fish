@@ -354,7 +354,7 @@ app.get('/grouped', async (c) => {
   }
 
   if (relevantIds.length === 0) {
-    c.header('Cache-Control', 'public, max-age=60');
+    c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
     return c.json([]);
   }
 
@@ -380,7 +380,10 @@ app.get('/grouped', async (c) => {
         (a.source.createdAt?.getTime() ?? 0) - (b.source.createdAt?.getTime() ?? 0),
     );
 
-  c.header('Cache-Control', 'public, max-age=60');
+  // 边缘缓存 5 分钟 + SWR 10 分钟：首页数据最快每小时（fetcher cron）才变，
+  // 长缓存把首页查库频率砍约 15 倍；SWR 保证过期后用户仍瞬时命中旧内容、后台异步刷新。
+  // 后台操作（加源/抓取）后前端带 ?bust= 穿透此缓存立即看到效果。
+  c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
   return c.json(result);
 });
 
