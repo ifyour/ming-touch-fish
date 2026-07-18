@@ -15,9 +15,6 @@ import type { Bindings } from '../types';
 const INITIAL_PER_SOURCE = 10;
 const PAGE_SIZE = 10;
 const SUMMARY_FAIL_TTL = 24 * 60 * 60 * 1000;
-// live 抓取稳定失败时，短时跳过 live 直接走后续回退（避免每次都花 10~20s 出站抓取）。
-// 短于 browser 失败缓存：live 失败可能是临时抖动，不应长期跳过。
-const LIVE_FAIL_TTL = 60 * 60 * 1000;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -121,47 +118,32 @@ app.get('/:id/summary', async (c) => {
     }
 
     // 2. 实时抓取文章页 → Readability（最慢、最易被反爬，仅在前一步未命中时才跑）。
-    // live 稳定失败（被反爬/超时）时记短 TTL，下次直接跳过本步走后续回退，避免重复浪费。
+    // 不写 liveFailedAt 缓存：live 失败多为稳定反爬，1h 短缓存收益低，而每次失败都重写
+    // 整个 metadata JSON 列反而消耗更稀缺的 D1 写配额（Free 50k 写/天）。失败直接回退
+    // 后续阶段，靠 browser 兜底即可。
     if (!text || !isContentSufficient(text)) {
-      const liveFailedAt = meta?.liveFailedAt as number | undefined;
-      const liveRecentlyFailed =
-        typeof liveFailedAt === 'number' && Date.now() - liveFailedAt < LIVE_FAIL_TTL;
-      if (liveRecentlyFailed) {
-        logger.info('文章总结跳过 live（近期失败缓存命中）', {
+      const t0 = Date.now();
+      stage = 'live';
+      try {
+        const liveText = await extractArticleText(row.url);
+        // 反爬/拦截页识别：抓到挑战页（"请启用 JavaScript" 等）时文本可能 ≥80 字但无意义，
+        // 当成正文会喂给 Gemini 生成幻觉总结并污染缓存，故视为无效回退下一级。
+        if (looksLikeErrorPage(liveText)) {
+          throw new Error('live 抓到反爬/拦截页，非正文');
+        }
+        text = liveText;
+        source = 'live';
+      } catch (err) {
+        const took = Date.now() - t0;
+        stageMs.live = took;
+        logger.warn('文章总结实时抓取失败，回退 RSS 简介', {
           service: 'web-api',
           articleId: id,
-          url: row.url,
+          stage,
+          ms: took,
+          error: err instanceof Error ? err.message : err,
         });
-      } else {
-        const t0 = Date.now();
-        stage = 'live';
-        try {
-          const liveText = await extractArticleText(row.url);
-          // 反爬/拦截页识别：抓到挑战页（"请启用 JavaScript" 等）时文本可能 ≥80 字但无意义，
-          // 当成正文会喂给 Gemini 生成幻觉总结并污染缓存，故视为无效回退下一级。
-          if (looksLikeErrorPage(liveText)) {
-            throw new Error('live 抓到反爬/拦截页，非正文');
-          }
-          text = liveText;
-          source = 'live';
-        } catch (err) {
-          const took = Date.now() - t0;
-          stageMs.live = took;
-          logger.warn('文章总结实时抓取失败，回退 RSS 简介', {
-            service: 'web-api',
-            articleId: id,
-            stage,
-            ms: took,
-            error: err instanceof Error ? err.message : err,
-          });
-          // 记 live 失败时间，短时跳过（临时抖动不应长期跳过，故 TTL 较短）。
-          const prevMeta = meta ?? {};
-          await db
-            .update(schema.articles)
-            .set({ metadata: { ...prevMeta, liveFailedAt: Date.now() } })
-            .where(eq(schema.articles.id, id));
-          text = null;
-        }
+        text = null;
       }
     }
 
