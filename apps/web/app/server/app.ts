@@ -27,6 +27,7 @@ app.use('*', prettyJSON());
 
 app.onError((err, c) => {
   logger.error('API error', { service: 'web-api', error: err });
+  c.header('Cache-Control', 'no-store');
   return c.json({ error: err.message ?? 'Internal Server Error' }, 500);
 });
 

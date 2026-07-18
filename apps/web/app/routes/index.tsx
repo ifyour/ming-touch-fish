@@ -20,11 +20,15 @@ import { getGroupedBust } from '../utils/groupedBust.js';
 export const Route = createFileRoute('/')({
   component: HomePage,
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData({
-      queryKey: ['articles', 'grouped', 'active'],
-      queryFn: () => fetchGroupedArticles('active'),
-      staleTime: 5 * 60 * 1000,
-    });
+    // SSR 阶段预取；偶发失败时静默忽略，交由客户端 useQuery 重新拉取，避免整页崩溃。
+    await context.queryClient
+      .ensureQueryData({
+        queryKey: ['articles', 'grouped', 'active'],
+        queryFn: () => fetchGroupedArticles('active'),
+        staleTime: 5 * 60 * 1000,
+        retry: false,
+      })
+      .catch(() => {});
   },
 });
 
@@ -42,7 +46,20 @@ async function fetchGroupedArticles(scope: 'active' | 'stale'): Promise<GroupedR
   if (!response.ok) {
     throw new Error('Failed to load articles');
   }
-  const groups: ArticleGroupedBySource[] = await response.json();
+  // 边缘/CDN 偶发返回非 JSON（如 Cloudflare 错误页、D1 超时），直接 JSON.parse 会抛错并白屏整页。
+  // 先校验 content-type 并按文本解析，解析失败抛清晰错误交给 React Query 的 error 分支处理。
+  const contentType = response.headers.get('content-type') ?? '';
+  const text = await response.text();
+  let groups: ArticleGroupedBySource[];
+  if (contentType.includes('application/json')) {
+    try {
+      groups = JSON.parse(text);
+    } catch {
+      throw new Error('Failed to load articles');
+    }
+  } else {
+    throw new Error('Failed to load articles');
+  }
   const hasStale = response.headers.get('X-Has-Stale') === 'true';
   return { groups, hasStale };
 }
