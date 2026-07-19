@@ -127,7 +127,7 @@ pnpm dev:fetcher
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/articles/grouped?scope=active\|stale` | 按源聚合文章（`active` 默认只返活跃源，`stale` 返过期源），带 `X-Has-Stale` 响应头与边缘缓存；另支持 `?sourceId=&offset=&limit=` 单源分页（带 `X-Has-More` 响应头） |
-| GET | `/api/articles/:id/summary` | 文章 AI 总结（先查缓存，未命中按四级回退抽正文调 Gemini，不足返回 422 带 `stage`/`detail` 诊断字段） |
+| GET | `/api/articles/:id/summary` | 文章 AI 总结（先查缓存，未命中按「读库预抽 → live 抓页（真爬虫 UA 优先 + AMP 回退）→ RSS 简介 → Browser 渲染」四级回退抽正文调 Gemini，不足返回 422 带 `stage`/`detail` 诊断字段） |
 | POST | `/api/sources/:id/fetch` | 触发单源抓取（生产走 Queue 异步，本地 `DIRECT_FETCH` 同步） |
 | POST | `/api/sources/fetch-all` | 触发全量抓取 |
 | POST | `/api/sources/detect` | 输入网址自动探测 RSS（识别 `<link rel=alternate>` 与常见 feed 路径） |
@@ -210,6 +210,7 @@ pnpm deploy:web
 - 后台资讯源列表展示每行 ID，支持复选框多选后**批量启用 / 批量停用 / 批量删除**（删除带二次确认，相关文章随 FK cascade 一并清除）。
 - DeepL 免费版每月 50 万字符额度；若翻译调用频繁，可关注用量或关闭部分英文源的自动翻译。翻译失败时返回 `null`，前端自动回退显示原标题。
 - 文章 AI 总结的第四层正文兜底依赖 Cloudflare **Browser Run REST API**（非 Pages 绑定，因 Pages Functions 不支持 Browser 绑定）。需在 Pages 项目配置两个 secret：`CLOUDFLARE_API_TOKEN`（带 `Browser Rendering - Edit` 权限）和 `CLOUDFLARE_ACCOUNT_ID`。Free 计划每天 10 分钟浏览器时长免费，超出仅限流不扣费。未配置这两个变量时第四层自动跳过，不影响其他三级回退。
+- 实时抓取（live）做了付费墙鲁棒性增强：先用**真爬虫 UA（`Googlebot`/`bingbot`）**抓页（媒体站普遍对搜索引擎放开全文），失败再用普通浏览器 UA 兜底；抓到挑战页或正文不足时还会再试 **AMP 变体**（`/amp`、`?amp=1`、`?outputType=amp`）。这两项与已有的 JSON-LD 抽正文、禁用 JS 抽取、拦截页识别共同构成对订阅源付费墙的穿透能力。
 - Queue 消费失败会自动重试 3 次（配额类错误直接 ack 不重试），可在 Workers 日志中查看错误详情。
 
 ## 已知坑

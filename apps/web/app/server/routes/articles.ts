@@ -5,6 +5,7 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import {
   extractArticleText,
+  extractArticleTextViaAmp,
   extractArticleTextViaBrowser,
   extractFromHtml,
   looksLikeErrorPage,
@@ -136,7 +137,7 @@ app.get('/:id/summary', async (c) => {
       } catch (err) {
         const took = Date.now() - t0;
         stageMs.live = took;
-        logger.warn('文章总结实时抓取失败，回退 RSS 简介', {
+        logger.warn('文章总结实时抓取失败，回退 AMP 变体', {
           service: 'web-api',
           articleId: id,
           stage,
@@ -144,6 +145,30 @@ app.get('/:id/summary', async (c) => {
           error: err instanceof Error ? err.message : err,
         });
         text = null;
+      }
+    }
+
+    // 2.5 付费墙友好：live 抓到挑战页或正文不足时，再试 AMP 变体（/amp、?amp=1、?outputType=amp）。
+    // 多数媒体站对 AMP 版本放开付费墙，是个几乎零成本的补充来源。命中即采用，否则继续 RSS 回退。
+    if ((!text || !isContentSufficient(text)) && (stage === 'live' || stage === 'rss-content')) {
+      const t0 = Date.now();
+      try {
+        const ampText = await extractArticleTextViaAmp(row.url);
+        if (looksLikeErrorPage(ampText)) {
+          throw new Error('AMP 抓到反爬/拦截页，非正文');
+        }
+        if (isContentSufficient(ampText)) {
+          text = ampText;
+          source = 'live';
+          stage = 'live';
+        }
+      } catch (err) {
+        logger.warn('文章总结 AMP 抓取失败，回退 RSS 简介', {
+          service: 'web-api',
+          articleId: id,
+          ms: Date.now() - t0,
+          error: err instanceof Error ? err.message : err,
+        });
       }
     }
 

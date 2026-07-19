@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { extractArticleTextViaBrowser, extractFromHtml } from './extract';
+import {
+  extractArticleText,
+  extractArticleTextViaAmp,
+  extractArticleTextViaBrowser,
+  extractFromHtml,
+} from './extract';
+
+type MockResp = { ok: boolean; status: number; text: () => Promise<string> };
+const mockResp = (ok: boolean, status: number, body: string): MockResp => ({
+  ok,
+  status,
+  text: async () => body,
+});
 
 describe('extractFromHtml', () => {
   it('extracts main text content via Readability', () => {
@@ -74,6 +86,112 @@ describe('extractFromHtml', () => {
     expect(text).toContain('这是页面上真实可见的文章正文内容');
     expect(text).not.toContain('window.x');
     expect(text).not.toContain('JSON.parse');
+  });
+});
+
+describe('extractArticleText', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const articleHtml =
+    '<html><body><article><p>这是一篇真实可见的文章正文，足够长以通过抽取校验阈值。</p></article></body></html>';
+  const okResp = mockResp(true, 200, articleHtml);
+
+  it('优先用 Googlebot UA 抓页，命中即返回正文', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit): Promise<MockResp> => {
+      const ua = (init.headers as Record<string, string>)['user-agent'];
+      // 只有 Googlebot 才放行（模拟付费墙对爬虫放开）
+      return ua.includes('Googlebot') ? okResp : mockResp(false, 403, '');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const text = await extractArticleText('https://paywalled.example.com/a');
+    expect(text).toContain('这是一篇真实可见的文章正文');
+    const firstUa = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(firstUa['user-agent']).toContain('Googlebot');
+  });
+
+  it('Googlebot 失败时用普通浏览器 UA 兜底', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit): Promise<MockResp> => {
+      const ua = (init.headers as Record<string, string>)['user-agent'];
+      return ua.includes('Googlebot') ? mockResp(false, 403, '') : okResp;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const text = await extractArticleText('https://paywalled.example.com/a');
+    expect(text).toContain('这是一篇真实可见的文章正文');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('两档 UA 都失败时不抛未定义错误', async () => {
+    const fetchMock = vi.fn(async (): Promise<MockResp> => mockResp(false, 403, ''));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(extractArticleText('https://paywalled.example.com/a')).rejects.toThrow();
+  });
+});
+
+describe('extractArticleTextViaAmp', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const ampHtml =
+    '<html><body><article><p>AMP 版本完整正文，付费墙在这里被放开。</p></article></body></html>';
+  const url = 'https://news.example.com/2024/story';
+
+  it('为普通 URL 生成 /amp 与 ?amp=1、?outputType=amp 三种变体', () => {
+    // 通过记录被请求 URL 验证变体生成（不依赖内部函数导出）
+    const requested: string[] = [];
+    const fetchMock = vi.fn(async (u: string): Promise<MockResp> => {
+      requested.push(u);
+      // 全部失败，仅用于收集请求 URL
+      return mockResp(false, 404, '');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    return extractArticleTextViaAmp(url).catch(() => {
+      expect(requested).toContain('https://news.example.com/2024/story/amp');
+      expect(requested).toContain('https://news.example.com/2024/story?amp=1');
+      expect(requested).toContain('https://news.example.com/2024/story?outputType=amp');
+    });
+  });
+
+  it('首个能抽到的 AMP 变体即被采用，不再请求后续变体', async () => {
+    const fetchMock = vi.fn(async (u: string): Promise<MockResp> => {
+      if (u.endsWith('/amp')) {
+        return mockResp(true, 200, ampHtml);
+      }
+      return mockResp(false, 404, '');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const text = await extractArticleTextViaAmp(url);
+    expect(text).toContain('AMP 版本完整正文');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('已带 amp 字样的 URL 不再重复拼接变体', async () => {
+    const requested: string[] = [];
+    const fetchMock = vi.fn(async (u: string): Promise<MockResp> => {
+      requested.push(u);
+      return mockResp(false, 404, '');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    return extractArticleTextViaAmp('https://news.example.com/2024/story/amp').catch(() => {
+      // 单变体 × 2 个回退 UA = 2 次请求，但都只是 /amp 这一个 URL，不再重复拼接其它变体
+      expect(requested.length).toBe(2);
+      expect(requested.every((u) => u === 'https://news.example.com/2024/story/amp')).toBe(true);
+    });
+  });
+
+  it('所有 AMP 变体都失败时抛错', async () => {
+    const fetchMock = vi.fn(async (): Promise<MockResp> => mockResp(false, 404, ''));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(extractArticleTextViaAmp(url)).rejects.toThrow();
   });
 });
 

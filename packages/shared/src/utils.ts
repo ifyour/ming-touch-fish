@@ -174,15 +174,28 @@ const FALLBACK_UA =
 
 export const SUMMARY_UAS = [BROWSER_UA, FALLBACK_UA];
 
+// 付费墙白名单 UA：媒体站通常对 Googlebot/bingbot 放开全文本以便搜索引擎收录，
+// 故用真爬虫 UA 抓页常能绕过 JS 注入的付费墙遮罩（bypass-paywalls 的核心技巧之一）。
+// 用于文章总结 live 阶段优先尝试，命中率通常高于普通浏览器 UA。
+export const PAYWALL_UAS = [
+  'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+  'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+];
+
 const FETCH_TIMEOUT = 10000;
 
 /**
  * 用多个 UA 回退抓取 URL，返回第一个成功的响应；全部失败则抛出最后一条错误。
  * web（文章总结抽正文）与 fetcher（抓源）共用，避免重复实现 UA 回退。
+ * @param uas 可选；覆盖默认 UA 列表（如优先试付费墙爬虫 UA）。
  */
-export async function fetchWithUA(url: string, init?: RequestInit): Promise<Response> {
+export async function fetchWithUA(
+  url: string,
+  init?: RequestInit,
+  uas: string[] = SUMMARY_UAS,
+): Promise<Response> {
   let lastErr: unknown;
-  for (const ua of SUMMARY_UAS) {
+  for (const ua of uas) {
     try {
       const resp = await fetch(url, {
         ...init,

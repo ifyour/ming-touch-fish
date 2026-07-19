@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  fetchWithUA,
   formatRelativeTime,
   getSourceHomepage,
   isCloudflareQuotaError,
@@ -7,6 +8,7 @@ import {
   isStaleByNewestPublishedAt,
   isStaleGroup,
   normalizeUrl,
+  PAYWALL_UAS,
   shouldFetchNow,
 } from './utils';
 
@@ -197,5 +199,56 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime(new Date(Date.now() - 5 * MINUTE))).toBe('5 分钟前');
     expect(formatRelativeTime(new Date(Date.now() - 2 * HOUR))).toBe('2 小时前');
     expect(formatRelativeTime(new Date(Date.now() - 3 * DAY))).toBe('3 天前');
+  });
+});
+
+describe('PAYWALL_UAS', () => {
+  it('包含真爬虫 UA（Googlebot / bingbot）', () => {
+    expect(PAYWALL_UAS.some((ua) => ua.includes('Googlebot'))).toBe(true);
+    expect(PAYWALL_UAS.some((ua) => ua.includes('bingbot'))).toBe(true);
+  });
+});
+
+describe('fetchWithUA', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const okResp = { ok: true, text: async () => '<p>正文</p>' };
+  const failResp = { ok: false, status: 403, text: async () => '' };
+
+  it('默认用 SUMMARY_UAS 列表逐 UA 回退', async () => {
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(failResp); // 第一个 UA 失败
+    fetchMock.mockResolvedValueOnce(okResp); // 第二个 UA 成功
+    vi.stubGlobal('fetch', fetchMock);
+
+    const resp = await fetchWithUA('https://example.com/a');
+    expect(resp).toBe(okResp);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('接受覆盖 UA 列表参数', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      // 仅当命中指定的 Googlebot UA 时才成功，验证覆盖列表真的被用上
+      const ua = (init.headers as Record<string, string>)['user-agent'];
+      return ua.includes('Googlebot') ? okResp : failResp;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const resp = await fetchWithUA('https://example.com/a', undefined, PAYWALL_UAS);
+    expect(resp).toBe(okResp);
+    const firstUa = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(firstUa['user-agent']).toContain('Googlebot');
+  });
+
+  it('所有 UA 都失败时才抛出最后一条错误', async () => {
+    const fetchMock = vi.fn(async () => failResp);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchWithUA('https://example.com/a', undefined, PAYWALL_UAS)).rejects.toThrow(
+      'HTTP 403',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(PAYWALL_UAS.length);
   });
 });
