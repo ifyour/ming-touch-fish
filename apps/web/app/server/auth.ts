@@ -39,7 +39,7 @@ export function getAuth(db: D1Database) {
           type: 'string',
           required: false,
           defaultValue: null,
-          input: false,
+          input: true,
         },
       },
     },

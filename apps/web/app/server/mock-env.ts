@@ -2,8 +2,6 @@ import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/work
 import type { Bindings } from './types';
 
 class MockPreparedStatement {
-  constructor(_sql: string) {}
-
   bind(..._values: unknown[]): D1PreparedStatement {
     return this as unknown as D1PreparedStatement;
   }
@@ -57,8 +55,8 @@ class MockPreparedStatement {
 }
 
 class MockD1Database implements D1Database {
-  prepare(query: string): D1PreparedStatement {
-    return new MockPreparedStatement(query) as unknown as D1PreparedStatement;
+  prepare(_query: string): D1PreparedStatement {
+    return new MockPreparedStatement() as unknown as D1PreparedStatement;
   }
 
   async batch<T = unknown>(_statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {

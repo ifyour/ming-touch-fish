@@ -13,13 +13,11 @@ app.get('/articles', async (c) => {
   const user = await getSessionUser(c.env, c.req.raw);
   if (!user) return c.json({ error: 'unauthorized' }, 401);
 
-  const { results } = await c.env.DB.prepare(
-    'SELECT article_id FROM read_articles WHERE user_id = ?',
-  )
+  const { results } = await c.env.DB.prepare('SELECT articleId FROM read_articles WHERE userId = ?')
     .bind(user.id)
-    .all<{ article_id: number }>();
+    .all<{ articleId: number }>();
 
-  return c.json({ articleIds: results.map((r) => r.article_id) });
+  return c.json({ articleIds: results.map((r) => r.articleId) });
 });
 
 // 单条标记已读（upsert，忽略唯一索引冲突）。
@@ -31,7 +29,7 @@ app.post('/articles', async (c) => {
   if (!parsed.success) return c.json({ error: 'invalid body' }, 400);
 
   await c.env.DB.prepare(
-    'INSERT OR IGNORE INTO read_articles (user_id, article_id, read_at) VALUES (?, ?, ?)',
+    'INSERT OR IGNORE INTO read_articles (userId, articleId, readAt) VALUES (?, ?, ?)',
   )
     .bind(user.id, parsed.data.articleId, Date.now())
     .run();
@@ -50,7 +48,7 @@ app.post('/articles/batch', async (c) => {
   const now = Date.now();
   const statements = parsed.data.articleIds.map((id) =>
     c.env.DB.prepare(
-      'INSERT OR IGNORE INTO read_articles (user_id, article_id, read_at) VALUES (?, ?, ?)',
+      'INSERT OR IGNORE INTO read_articles (userId, articleId, readAt) VALUES (?, ?, ?)',
     ).bind(user.id, id, now),
   );
   await c.env.DB.batch(statements);
