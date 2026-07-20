@@ -16,7 +16,7 @@ import mantineNotificationsCss from '@mantine/notifications/styles.css?inline';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { Scripts } from '@tanstack/react-start';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Footer } from '../components/Footer';
 import { signIn, signOut, useSession } from '../lib/auth-client';
 import type { RouterContext } from '../router';
@@ -45,6 +45,58 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   notFoundComponent: NotFound,
 });
 
+function AuthMenu() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const { data: session, isPending } = useSession();
+
+  if (!mounted || isPending) return null;
+
+  if (session?.user) {
+    return (
+      <Group gap={6}>
+        {session.user.image ? (
+          <img
+            src={session.user.image}
+            alt=""
+            width={24}
+            height={24}
+            style={{ borderRadius: '50%', objectFit: 'cover' }}
+          />
+        ) : null}
+        <Text size="sm">
+          {(session.user as { displayName?: string | null }).displayName ??
+            session.user.name ??
+            session.user.email}
+        </Text>
+        <Anchor
+          component="button"
+          size="xs"
+          onClick={() => {
+            void signOut();
+            location.reload();
+          }}
+          style={{ cursor: 'pointer', color: '#000' }}
+        >
+          退出
+        </Anchor>
+      </Group>
+    );
+  }
+
+  return (
+    <Anchor
+      component="button"
+      size="sm"
+      fw={500}
+      onClick={() => void signIn.social({ provider: 'github', callbackURL: '/' })}
+      style={{ cursor: 'pointer', color: '#000' }}
+    >
+      登录
+    </Anchor>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const navigate = useNavigate();
@@ -64,55 +116,6 @@ function RootComponent() {
     }, 1500);
   }, [navigate]);
 
-  const { data: session, isPending } = useSession();
-
-  const handleLogin = () => {
-    void signIn.social({ provider: 'github', callbackURL: '/' });
-  };
-
-  const handleLogout = async () => {
-    await signOut();
-    location.reload();
-  };
-
-  const userMenu = isPending ? null : session?.user ? (
-    <Group gap={6}>
-      {session.user.image ? (
-        <img
-          src={session.user.image}
-          alt=""
-          width={24}
-          height={24}
-          style={{ borderRadius: '50%', objectFit: 'cover' }}
-        />
-      ) : null}
-      <Text size="sm">
-        {(session.user as { displayName?: string | null }).displayName ??
-          session.user.name ??
-          session.user.email}
-      </Text>
-      <Anchor
-        component="button"
-        size="xs"
-        c="dimmed"
-        onClick={handleLogout}
-        style={{ cursor: 'pointer' }}
-      >
-        退出
-      </Anchor>
-    </Group>
-  ) : (
-    <Anchor
-      component="button"
-      size="sm"
-      fw={500}
-      onClick={handleLogin}
-      style={{ cursor: 'pointer' }}
-    >
-      登录
-    </Anchor>
-  );
-
   return (
     <html lang="zh-CN">
       <head>
@@ -131,7 +134,7 @@ function RootComponent() {
         <style>{`.article-link{color:inherit;text-decoration:none}.article-link:visited{color:var(--mantine-color-gray-5)}`}</style>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var a=JSON.parse(localStorage.getItem('read_articles')||'[]');if(a.length){var s=document.createElement('style');s.id='r';for(var i=0;i<a.length;i+=50){s.textContent+='.article-link[data-article-id="'+a.slice(i,i+50).join('"],.article-link[data-article-id="')+'"]{color:var(--mantine-color-gray-5)}'}document.head.appendChild(s)}}catch(e){}`,
+            __html: `requestAnimationFrame(function(){try{var a=JSON.parse(localStorage.getItem('read_articles')||'[]');if(a.length){var s=document.createElement('style');s.id='r';for(var i=0;i<a.length;i+=50){s.textContent+='.article-link[data-article-id="'+a.slice(i,i+50).join('"],.article-link[data-article-id="')+'"]{color:var(--mantine-color-gray-5)}'}document.head.appendChild(s)}}catch(e){}});`,
           }}
         />
       </head>
@@ -172,7 +175,7 @@ function RootComponent() {
                       TouchFish News
                     </Text>
                   </Group>
-                  {userMenu}
+                  <AuthMenu />
                 </Container>
               </Box>
               <Box p="md">
