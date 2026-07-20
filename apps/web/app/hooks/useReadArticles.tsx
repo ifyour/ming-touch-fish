@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useSession } from '../lib/auth-client';
 
 const STORAGE_KEY = 'read_articles';
@@ -34,10 +34,11 @@ export interface UseReadArticles {
   isAuthenticated: boolean;
 }
 
-// 已读状态双轨：
-// - 未登录：沿用原 localStorage 方案（匿名体验不变）。
-// - 已登录：已读集合来自服务端 /api/read/articles，标记时写入 D1（read_articles 表）。
-export function useReadArticles(): UseReadArticles {
+const ReadArticlesContext = createContext<UseReadArticles | null>(null);
+
+// 已读状态集中在 Provider 中维护（首页只挂载一个），避免每个 SourceSection 各自请求
+// /api/read/articles 造成大量重复请求。子组件通过 useReadArticles() 读取同一份状态。
+export function ReadArticlesProvider({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
   const isAuthenticated = !!session?.user;
 
@@ -46,8 +47,9 @@ export function useReadArticles(): UseReadArticles {
   const [loaded, setLoaded] = useState(false);
   const localIdsRef = useRef(localIds);
   localIdsRef.current = localIds;
+  const fetchingRef = useRef(false);
 
-  // 登录态变化：拉取 / 重置远程已读集合。
+  // 登录态变化：拉取 / 重置远程已读集合。fetchingRef 防止 effect 重跑时重复请求。
   useEffect(() => {
     if (isPending) return;
     if (!isAuthenticated) {
@@ -55,7 +57,9 @@ export function useReadArticles(): UseReadArticles {
       setLoaded(false);
       return;
     }
+    if (fetchingRef.current) return;
     let cancelled = false;
+    fetchingRef.current = true;
     setLoaded(false);
     fetch('/api/read/articles')
       .then((r) => (r.ok ? r.json() : null))
@@ -70,6 +74,9 @@ export function useReadArticles(): UseReadArticles {
           setRemoteIds(new Set());
           setLoaded(true);
         }
+      })
+      .finally(() => {
+        fetchingRef.current = false;
       });
     return () => {
       cancelled = true;
@@ -131,5 +138,18 @@ export function useReadArticles(): UseReadArticles {
     [isAuthenticated, readIds],
   );
 
-  return { readIds, markRead, markAllRead, isAuthenticated: isAuthenticated && loaded };
+  const value: UseReadArticles = {
+    readIds,
+    markRead,
+    markAllRead,
+    isAuthenticated: isAuthenticated && loaded,
+  };
+  return <ReadArticlesContext.Provider value={value}>{children}</ReadArticlesContext.Provider>;
+}
+
+// 读取已读状态。必须在 ReadArticlesProvider 内使用（首页已包裹）。
+export function useReadArticles(): UseReadArticles {
+  const ctx = useContext(ReadArticlesContext);
+  if (!ctx) throw new Error('useReadArticles 必须在 ReadArticlesProvider 内使用');
+  return ctx;
 }

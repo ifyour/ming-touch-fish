@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { SourceSection } from '../components/SourceSection.js';
+import { ReadArticlesProvider } from '../hooks/useReadArticles.js';
 import type { ArticleGroupedBySource } from '../types/api';
 import { getApiUrl } from '../utils/apiUrl.js';
 import { getGroupedBust } from '../utils/groupedBust.js';
@@ -121,69 +122,71 @@ function HomePage() {
   const activeGroups = active?.groups ?? [];
 
   return (
-    <Container size="xl">
-      {activeGroups.length === 0 && !active?.hasStale && !staleGroups?.length ? (
-        <Alert>暂无资讯，请先添加资讯源并运行抓取。</Alert>
-      ) : (
-        <>
-          <SimpleGrid
-            cols={{ base: 1, sm: 2, lg: 3 }}
-            spacing="md"
-            verticalSpacing="md"
-            style={{ alignItems: 'start' }}
-          >
-            {activeGroups.map((group) => (
-              <SourceSection key={group.source.id} group={group} />
-            ))}
-          </SimpleGrid>
-          {showStale && staleGroups && (
-            <Stack gap="sm" mt="md">
-              <Collapse in={showStale}>
-                <SimpleGrid
-                  cols={{ base: 1, sm: 2, lg: 3 }}
-                  spacing="md"
-                  verticalSpacing="md"
-                  style={{ alignItems: 'start' }}
+    <ReadArticlesProvider>
+      <Container size="xl">
+        {activeGroups.length === 0 && !active?.hasStale && !staleGroups?.length ? (
+          <Alert>暂无资讯，请先添加资讯源并运行抓取。</Alert>
+        ) : (
+          <>
+            <SimpleGrid
+              cols={{ base: 1, sm: 2, lg: 3 }}
+              spacing="md"
+              verticalSpacing="md"
+              style={{ alignItems: 'start' }}
+            >
+              {activeGroups.map((group) => (
+                <SourceSection key={group.source.id} group={group} />
+              ))}
+            </SimpleGrid>
+            {showStale && staleGroups && (
+              <Stack gap="sm" mt="md">
+                <Collapse in={showStale}>
+                  <SimpleGrid
+                    cols={{ base: 1, sm: 2, lg: 3 }}
+                    spacing="md"
+                    verticalSpacing="md"
+                    style={{ alignItems: 'start' }}
+                  >
+                    {staleGroups.map((group) => (
+                      <SourceSection key={group.source.id} group={group} />
+                    ))}
+                  </SimpleGrid>
+                </Collapse>
+              </Stack>
+            )}
+            {(active?.hasStale || staleGroups) && (
+              <Center mt="md">
+                <Anchor
+                  component="button"
+                  size="sm"
+                  c="dimmed"
+                  disabled={loadingStale}
+                  onClick={loadStale}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
                 >
-                  {staleGroups.map((group) => (
-                    <SourceSection key={group.source.id} group={group} />
-                  ))}
-                </SimpleGrid>
-              </Collapse>
-            </Stack>
-          )}
-          {(active?.hasStale || staleGroups) && (
-            <Center mt="md">
-              <Anchor
-                component="button"
-                size="sm"
-                c="dimmed"
-                disabled={loadingStale}
-                onClick={loadStale}
-                style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                {loadingStale ? (
-                  <>
-                    <span>加载中…</span>
-                    <Loader size={12} />
-                  </>
-                ) : (
-                  <>
-                    <span>{showStale ? '收起' : '加载更多'}</span>
-                    <IconChevronDown
-                      size={14}
-                      style={{
-                        transform: showStale ? 'rotate(180deg)' : undefined,
-                        transition: 'transform 150ms ease',
-                      }}
-                    />
-                  </>
-                )}
-              </Anchor>
-            </Center>
-          )}
-        </>
-      )}
-    </Container>
+                  {loadingStale ? (
+                    <>
+                      <span>加载中…</span>
+                      <Loader size={12} />
+                    </>
+                  ) : (
+                    <>
+                      <span>{showStale ? '收起' : '加载更多'}</span>
+                      <IconChevronDown
+                        size={14}
+                        style={{
+                          transform: showStale ? 'rotate(180deg)' : undefined,
+                          transition: 'transform 150ms ease',
+                        }}
+                      />
+                    </>
+                  )}
+                </Anchor>
+              </Center>
+            )}
+          </>
+        )}
+      </Container>
+    </ReadArticlesProvider>
   );
 }

@@ -29,9 +29,9 @@ app.post('/articles', async (c) => {
   if (!parsed.success) return c.json({ error: 'invalid body' }, 400);
 
   await c.env.DB.prepare(
-    'INSERT OR IGNORE INTO read_articles (userId, articleId, readAt) VALUES (?, ?, ?)',
+    'INSERT OR IGNORE INTO read_articles (id, userId, articleId, readAt) VALUES (?, ?, ?, ?)',
   )
-    .bind(user.id, parsed.data.articleId, Date.now())
+    .bind(crypto.randomUUID(), user.id, parsed.data.articleId, Date.now())
     .run();
 
   return c.json({ ok: true });
@@ -48,8 +48,8 @@ app.post('/articles/batch', async (c) => {
   const now = Date.now();
   const statements = parsed.data.articleIds.map((id) =>
     c.env.DB.prepare(
-      'INSERT OR IGNORE INTO read_articles (userId, articleId, readAt) VALUES (?, ?, ?)',
-    ).bind(user.id, id, now),
+      'INSERT OR IGNORE INTO read_articles (id, userId, articleId, readAt) VALUES (?, ?, ?, ?)',
+    ).bind(crypto.randomUUID(), user.id, id, now),
   );
   await c.env.DB.batch(statements);
 
