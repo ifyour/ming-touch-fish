@@ -186,6 +186,9 @@ wrangler secret put GEMINI_API_KEY
 # 在 apps/web 目录下执行（用户登录，GitHub OAuth）
 wrangler secret put GITHUB_CLIENT_ID
 wrangler secret put GITHUB_CLIENT_SECRET
+# 在 apps/web 目录下执行（better-auth 会话签名密钥，必配）
+# 不设则当次部署随机生成，worker 重启/重新部署后已登录用户全部掉线、多实例间登录态不一致。
+wrangler secret put BETTER_AUTH_SECRET
 ```
 
 GitHub OAuth App 配置：在 GitHub Developer Settings 创建 OAuth App，Authorization callback URL 填 `<你的 Pages 域名>/api/auth/callback/github`（本项目生产域名为 `https://news.mingming.dev`，即 `https://news.mingming.dev/api/auth/callback/github`）。
@@ -198,7 +201,7 @@ better-auth 前端登录时通过 `signIn.social({ callbackURL: '/' })` 回调�
 
 ### 4. 初始化 better-auth 表
 
-better-auth 使用原生 Cloudflare D1 适配器，表结构（`user` / `session` / `account` / `verification` 以及自定义 `read_articles`）在首次请求时**自动建表**。也可部署后手动触发一次迁移：
+better-auth 使用原生 Cloudflare D1 适配器，表结构（`user` / `session` / `account` / `verification` 以及自定义 `read_articles`）在首次请求时**自动建表**。也可在 `pnpm deploy:web` 之后手动触发一次迁移（端点特意用 `/api/admin-migrate`，避开被 `/api/auth/*` 通配拦截而返回 404）：
 
 ```bash
 curl -X POST https://<你的 Pages 域名>/api/admin-migrate

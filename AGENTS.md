@@ -215,8 +215,9 @@ web 端本地通过 `wrangler getBindingsProxy()` 拿 D1/Queue 绑定（[apps/we
 1. 在 Cloudflare 控制台创建 D1 `news-aggregator` 与 Queue `news-fetch-queue`，ID 填进两个 `wrangler.toml`。
 2. `wrangler d1 migrations apply news-aggregator --remote`
 3. 在 `apps/fetcher` 目录：`wrangler secret put DEEPL_API_KEY`、`wrangler secret put FIRECRAWL_API_KEY`
-4. 在 `apps/web` 目录：`wrangler secret put GEMINI_API_KEY`（文章 AI 总结）
-4. `pnpm deploy:fetcher` 然后 `pnpm deploy:web`
+4. 在 `apps/web` 目录：`wrangler secret put GEMINI_API_KEY`（文章 AI 总结）、`wrangler secret put GITHUB_CLIENT_ID`、`wrangler secret put GITHUB_CLIENT_SECRET`、`wrangler secret put BETTER_AUTH_SECRET`（better-auth 会话签名密钥，**必配**：不设则每次部署随机生成，已登录用户掉线、多实例登录态不一致）
+5. `pnpm deploy:fetcher` 然后 `pnpm deploy:web`
+6. 部署后触发一次 better-auth 建表（端点用 `/api/admin-migrate`，避开 `/api/auth/*` 通配拦截）：`curl -X POST https://<域名>/api/admin-migrate`
 
 ## 测试 fetcher（本地触发 cron）
 
