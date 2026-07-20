@@ -1,4 +1,5 @@
 import {
+  Anchor,
   Box,
   Button,
   ColorSchemeScript,
@@ -17,6 +18,7 @@ import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack
 import { Scripts } from '@tanstack/react-start';
 import { useCallback, useRef } from 'react';
 import { Footer } from '../components/Footer';
+import { signIn, signOut, useSession } from '../lib/auth-client';
 import type { RouterContext } from '../router';
 
 const theme = createTheme({
@@ -62,6 +64,51 @@ function RootComponent() {
     }, 1500);
   }, [navigate]);
 
+  const { data: session, isPending } = useSession();
+
+  const handleLogin = () => {
+    void signIn.social({ provider: 'github', callbackURL: '/' });
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    location.reload();
+  };
+
+  const userMenu = isPending ? null : session?.user ? (
+    <Group gap={6}>
+      {session.user.image ? (
+        <img
+          src={session.user.image}
+          alt=""
+          width={24}
+          height={24}
+          style={{ borderRadius: '50%', objectFit: 'cover' }}
+        />
+      ) : null}
+      <Text size="sm">{session.user.name ?? session.user.email}</Text>
+      <Anchor
+        component="button"
+        size="xs"
+        c="dimmed"
+        onClick={handleLogout}
+        style={{ cursor: 'pointer' }}
+      >
+        退出
+      </Anchor>
+    </Group>
+  ) : (
+    <Anchor
+      component="button"
+      size="sm"
+      fw={500}
+      onClick={handleLogin}
+      style={{ cursor: 'pointer' }}
+    >
+      登录
+    </Anchor>
+  );
+
   return (
     <html lang="zh-CN">
       <head>
@@ -94,7 +141,10 @@ function RootComponent() {
                 py="sm"
                 style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
               >
-                <Container size="xl" style={{ display: 'flex', alignItems: 'center' }}>
+                <Container
+                  size="xl"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                >
                   <Group gap="xs">
                     {/* <img
                       src="/logo.svg"
@@ -118,6 +168,7 @@ function RootComponent() {
                       TouchFish News
                     </Text>
                   </Group>
+                  {userMenu}
                 </Container>
               </Box>
               <Box p="md">

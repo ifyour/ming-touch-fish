@@ -7,6 +7,7 @@ import { logger } from '@repo/telemetry';
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { requireAdmin } from '../session';
 import type { Bindings } from '../types';
 
 function createFetcherEnv(env: Bindings): Env {
@@ -61,6 +62,7 @@ const updateSourceSchema = z.object({
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.post('/detect', zValidator('json', z.object({ url: z.string() })), async (c) => {
+  if (!(await requireAdmin(c.env, c.req.raw))) return c.json({ error: 'unauthorized' }, 401);
   const { url } = c.req.valid('json');
   const normalized = normalizeInputUrl(url);
   if (!normalized) return c.json({ feedUrl: null });
@@ -146,6 +148,7 @@ app.get('/', async (c) => {
 });
 
 app.post('/', zValidator('json', createSourceSchema), async (c) => {
+  if (!(await requireAdmin(c.env, c.req.raw))) return c.json({ error: 'unauthorized' }, 401);
   const db = createDb(c.env.DB);
   const data = c.req.valid('json') as SourceInput;
 
@@ -173,6 +176,7 @@ app.get('/:id', async (c) => {
 });
 
 app.patch('/:id', zValidator('json', updateSourceSchema), async (c) => {
+  if (!(await requireAdmin(c.env, c.req.raw))) return c.json({ error: 'unauthorized' }, 401);
   const db = createDb(c.env.DB);
   const id = Number(c.req.param('id'));
   const data = c.req.valid('json');
@@ -188,6 +192,7 @@ app.patch('/:id', zValidator('json', updateSourceSchema), async (c) => {
 });
 
 app.delete('/:id', async (c) => {
+  if (!(await requireAdmin(c.env, c.req.raw))) return c.json({ error: 'unauthorized' }, 401);
   const db = createDb(c.env.DB);
   const id = Number(c.req.param('id'));
 
@@ -198,6 +203,7 @@ app.delete('/:id', async (c) => {
 });
 
 app.post('/fetch-all', async (c) => {
+  if (!(await requireAdmin(c.env, c.req.raw))) return c.json({ error: 'unauthorized' }, 401);
   const db = createDb(c.env.DB);
   const sources = await db.select().from(schema.sources).where(eq(schema.sources.isActive, true));
 
@@ -238,6 +244,7 @@ app.post('/fetch-all', async (c) => {
 });
 
 app.post('/:id/fetch', async (c) => {
+  if (!(await requireAdmin(c.env, c.req.raw))) return c.json({ error: 'unauthorized' }, 401);
   const id = Number(c.req.param('id'));
   const db = createDb(c.env.DB);
 

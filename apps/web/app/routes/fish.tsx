@@ -19,6 +19,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Container,
   Group,
   LoadingOverlay,
   Modal,
@@ -28,6 +29,7 @@ import {
   Switch,
   Table,
   Text,
+  Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -46,6 +48,7 @@ import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { SourceForm } from '../components/SourceForm.js';
+import { signIn, useSession } from '../lib/auth-client';
 import type { SourceWithLastFetchCount } from '../types/api';
 import { getApiUrl } from '../utils/apiUrl.js';
 import { bumpGroupedBust } from '../utils/groupedBust.js';
@@ -288,6 +291,7 @@ function SortableRow({
 }
 
 function AdminPage() {
+  const { data: session, isPending } = useSession();
   const { tab } = useSearch({ from: '/fish' });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -665,9 +669,39 @@ function AdminPage() {
     }
   };
 
+  const adminLogin = process.env.ADMIN_GITHUB_LOGIN ?? 'ifyour';
+  if (isPending) {
+    return <div style={{ padding: 32 }}>加载中…</div>;
+  }
+  if (!session?.user) {
+    return (
+      <Container size="sm" py="xl">
+        <Title order={3} mb="sm">
+          需要登录
+        </Title>
+        <Text c="dimmed" mb="md">
+          后台仅限管理员访问，请先使用 GitHub 登录。
+        </Text>
+        <Button onClick={() => void signIn.social({ provider: 'github', callbackURL: '/fish' })}>
+          使用 GitHub 登录
+        </Button>
+      </Container>
+    );
+  }
+  if (session.user.name !== adminLogin) {
+    return (
+      <Container size="sm" py="xl">
+        <Title order={3} mb="sm">
+          无访问权限
+        </Title>
+        <Text c="dimmed">当前 GitHub 账号无后台访问权限。</Text>
+      </Container>
+    );
+  }
+
   return (
     <>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } `}</style>
       <Group align="flex-start" gap={0} style={{ minHeight: 'calc(100vh - 80px)' }}>
         <Stack
           w={160}

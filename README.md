@@ -13,7 +13,8 @@
 - **文章 AI 总结**：任意文章可一键生成 50~80 字中文概述（Gemini `gemini-3.1-flash-lite`），结果缓存到 D1，命中即直接返回。
 - **V2EX 热议**：除常规 RSS 外，内置 V2EX 热议适配器（Firecrawl 抓取首页 `#TopicsHot` + 逐条补全正文），覆盖无 RSS 且反爬强的源。
 - **异步抓取**：生产环境抓取走 Cloudflare Queues 异步消费，规避 Pages 函数长耗时同步阻塞。
-- **隐蔽管理后台**：页头 "TouchFish News" 文字连点 3 次进入 `/fish`，支持资讯源增删改、批量启停、单源/全量抓取触发。
+- **隐蔽管理后台**：页头 "TouchFish News" 文字连点 3 次进入 `/fish`，支持资讯源增删改、批量启停、单源/全量抓取触发。后台需 GitHub 登录，仅 `ifyour` 账号可访问（可用 `ADMIN_GITHUB_LOGIN` 环境变量覆盖）。
+- **用户登录与已读**：右上角「登录」按钮支持 GitHub OAuth 登录（better-auth）。已读文章按用户维度存储到 D1（`read_articles` 表）；未登录用户沿用本地 `localStorage` 已读方案，匿名体验不变。
 
 ## 技术栈
 
@@ -23,6 +24,7 @@
 - **定时抓取**：Cloudflare Workers + Cron Triggers + Queues
 - **翻译**：DeepL API v2（英文标题 → 中文，批量上限 50 条/请求）
 - **AI 总结**：Gemini `gemini-3.1-flash-lite`（Google Generative Language API）
+- **登录与已读**：better-auth（GitHub OAuth，原生 Cloudflare D1 适配器），已读数据存 D1 `read_articles` 表
 - **反爬代理**：Firecrawl Scrape API（用于 V2EX 热议等无 RSS 且反爬强的源）
 
 ## 架构概览
@@ -132,6 +134,10 @@ pnpm dev:fetcher
 | POST | `/api/sources/fetch-all` | 触发全量抓取 |
 | POST | `/api/sources/detect` | 输入网址自动探测 RSS（识别 `<link rel=alternate>` 与常见 feed 路径） |
 | 其他 | `/api/sources/*` | 资讯源增删改、批量启停、批量删除等管理操作 |
+| GET | `/api/read/articles` | 获取当前登录用户的已读文章 ID 列表（未登录返回 401，前端回退 localStorage） |
+| POST | `/api/read/articles` | 单条标记已读 `{ articleId }`（写入 D1 `read_articles` 表，未登录 401） |
+| POST | `/api/read/articles/batch` | 批量标记已读 `{ articleIds: number[] }`（「标记已读」整卡片用） |
+| `*` | `/api/auth/*` | better-auth 端点：GitHub 登录回调、会话查询、登出等 |
 
 ## 代码质量与测试
 
@@ -177,9 +183,28 @@ wrangler secret put DEEPL_API_KEY
 wrangler secret put FIRECRAWL_API_KEY
 # 在 apps/web 目录下执行（文章 AI 总结）
 wrangler secret put GEMINI_API_KEY
+# 在 apps/web 目录下执行（用户登录，GitHub OAuth）
+wrangler secret put GITHUB_CLIENT_ID
+wrangler secret put GITHUB_CLIENT_SECRET
 ```
 
-### 4. 部署
+GitHub OAuth App 配置：在 GitHub Developer Settings 创建 OAuth App，Authorization callback URL 填 `<你的 Pages 域名>/api/auth/callback/github`（本项目生产域名为 `https://news.mingming.dev`，即 `https://news.mingming.dev/api/auth/callback/github`）。
+
+注意 GitHub 一个 OAuth App 只能配**一个精确 callback URL**。本地 `http://localhost:3000` 与生产 `https://news.mingming.dev` 是不同 origin，推荐两种做法之一：
+- **建两个 OAuth App**：一个 callback 填 `https://news.mingming.dev/api/auth/callback/github`（生产），另一个填 `http://localhost:3000/api/auth/callback/github`（本地），本地 `.dev.vars` 用本地 App 的 ID/Secret，生产 `wrangler secret put` 用生产 App 的。
+- **共用一个生产 App**：本地 dev 时把 `.dev.vars` 的 `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` 临时换成另一个配了 `localhost` callback 的 App 凭据。
+
+better-auth 前端登录时通过 `signIn.social({ callbackURL: '/' })` 回调后跳回首页，无需在 GitHub 侧登记多个回调路径。
+
+### 4. 初始化 better-auth 表
+
+better-auth 使用原生 Cloudflare D1 适配器，表结构（`user` / `session` / `account` / `verification` 以及自定义 `read_articles`）在首次请求时**自动建表**。也可部署后手动触发一次迁移：
+
+```bash
+curl -X POST https://<你的 Pages 域名>/api/auth-migrate
+```
+
+### 5. 部署
 
 ```bash
 # 部署抓取 Worker
@@ -205,7 +230,7 @@ pnpm deploy:web
 ## 注意事项
 
 - 首页按 priority 排序展示资讯源。最新文章发布时间距今超过 30 天（或无文章）的源为「过期源」，默认收起，主网格下方的「加载更多」按钮**点击后才会按需加载**这些更新较慢的订阅源，从源头降低数据库读压力。每张卡片初始展示 10 条，点击卡片内 "Show more" 或滚动到底部时向 `/api/articles/grouped?sourceId=&offset=` 拉取该源下一批（无限滚动），由 `X-Has-More` 响应头判断是否还有更多。
-- 管理后台入口为 `/fish`（首页页头 "TouchFish News" 文字连点 3 次也可进入），默认无认证，适合个人使用。如需保护，可在 Cloudflare 控制台为 Pages 域名启用 **Cloudflare Access**。
+- 管理后台入口为 `/fish`（首页页头 "TouchFish News" 文字连点 3 次也可进入）。后台需 GitHub 登录，仅 `ifyour` 账号可访问，未登录访问会跳转登录页、非授权账号显示「无访问权限」。可用 `ADMIN_GITHUB_LOGIN` 环境变量覆盖允许的管理员 GitHub 用户名。
 - 后台「更新」与「更新全部」**不直接同步抓取**，而是向 Queue 投递消息，由 fetcher worker 异步消费（抓取 + DeepL 翻译 + 入库）。触发后前端约 8–10 秒自动刷新文章列表。这样设计是为了规避 Pages 函数同步执行多 UA 回退导致的 30–40 秒 pending。
 - 后台资讯源列表展示每行 ID，支持复选框多选后**批量启用 / 批量停用 / 批量删除**（删除带二次确认，相关文章随 FK cascade 一并清除）。
 - DeepL 免费版每月 50 万字符额度；若翻译调用频繁，可关注用量或关闭部分英文源的自动翻译。翻译失败时返回 `null`，前端自动回退显示原标题。

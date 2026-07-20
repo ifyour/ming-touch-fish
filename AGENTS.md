@@ -127,7 +127,7 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 
 ### 管理后台入口
 
-**注意：管理后台路径是 `/fish`，不是 `/admin`（历史上的 `/admin` 已废弃，文档中如再出现 `/admin` 视为 drift，需回填为 `/fish`）。** 前端通过点击页头 "TouchFish News" 文字 **3 次**（1.5 秒内）跳转到 `/fish`，规避直接暴露。后台无鉴权，仅靠隐蔽入口；如需保护请用 Cloudflare Access。后台支持资讯源列表展示 ID、批量启停与批量删除。
+**注意：管理后台路径是 `/fish`，不是 `/admin`（历史上的 `/admin` 已废弃，文档中如再出现 `/admin` 视为 drift，需回填为 `/fish`）。** 前端通过点击页头 "TouchFish News" 文字 **3 次**（1.5 秒内）跳转到 `/fish`，规避直接暴露。后台已接入 better-auth（GitHub OAuth），**仅 GitHub 用户名 `ifyour` 可访问**（可用环境变量 `ADMIN_GITHUB_LOGIN` 覆盖）；未登录访问 `/fish` 会显示登录按钮、非授权账号显示「无访问权限」。所有后台写接口（`POST /api/sources`、`PATCH /api/sources/:id`、`DELETE /api/sources/:id`、`POST /api/sources/fetch-all`、`POST /api/sources/:id/fetch`）服务端均经 `requireAdmin()` 守卫，未登录或非管理员返回 401。后台支持资讯源列表展示 ID、批量启停与批量删除。
 
 ### 数据模型
 
@@ -165,6 +165,19 @@ web API 的 `POST /api/sources/:id/fetch` 和 `POST /api/sources/fetch-all` 在*
 - V2EX 源（URL 含 `v2ex.com/index.xml`）走专用 JSON API 分支，不走 RSS 解析。
 - V2EX 热议源（URL 含 `v2ex.com/#hot-topics`）通过 Firecrawl Scrape API 抓取首页 HTML，正则提取 `#TopicsHot` 区块。URL 末尾带 `?` 查询参数强制 V2EX 返回 HTML 而非 RSS/XML（内容协商）。Firecrawl API key 通过环境变量 `FIRECRAWL_API_KEY` 提供，配额 402 错误由 `isCloudflareQuotaError()` 检测并 ack。**热议条目在首页 `#TopicsHot` 中只有标题与链接、无正文**，因此抓取后会用 V2EX `topics/show.json?id=<topicId>` API 逐条补全 `content_rendered`，写入 `metadata.content` / `metadata.description`。这样文章总结（`/api/articles/:id/summary`）的 RSS 正文回退（第 2 级）才能命中；否则热议源的文章无任何正文落库，总结只能依赖请求时实时抓取话题页，在 dev / 受限网络下会稳定返回 422「正文抽取不足」。该补全是尽力而为：单条 API 失败只跳过该条，不影响其余。
 - Firecrawl 请求默认带上 `maxAge: 0` 强制绕过缓存，确保每次抓取拿到最新页面。Firecrawl 默认缓存 2 天，不设此参数会导致 V2EX 热榜始终返回旧数据。
+
+### 用户登录与已读
+
+- **登录用 better-auth**（GitHub OAuth），走**原生 Cloudflare D1 适配器**（`database: env.DB` 直接传 D1 binding，不引入 `@better-auth/drizzle-adapter`，避免 drizzle-orm 版本被迫升级）。`apps/web/app/server/auth.ts` 的 `getAuth(db)` 是工厂函数（env 是请求作用域），`app.ts` 在 `app.on(['POST','GET'], '/api/auth/*', ...)` 把请求转发给 `auth.handler`。**不要**把 `auth` 实例在模块顶层单例化（D1 binding 仅请求期可用）。
+- better-auth 端点全部挂在 `/api/auth/*`：GitHub 登录回调 `/api/auth/callback/github`、会话查询 `/api/auth/get-session`（客户端 `useSession` 内部调用）、登出等。OAuth App 的 callback URL 必须配 `<origin>/api/auth/callback/github`（本项目生产域名为 `https://news.mingming.dev`，即 `https://news.mingming.dev/api/auth/callback/github`）。
+- GitHub 一个 OAuth App 只能配**一个精确 callback URL**，`http://localhost:3000` 与 `https://news.mingming.dev` 是不同 origin。推荐建**两个 OAuth App**（本地/生产各一），本地 `.dev.vars` 用本地 App 的 `GITHUB_CLIENT_ID`/`SECRET`，生产 `wrangler secret put` 用生产 App 的；或本地临时把 `.dev.vars` 换成另一个配了 `localhost` callback 的 App 凭据。better-auth 前端通过 `signIn.social({ callbackURL: '/' })` 回调后跳回首页，无需在 GitHub 侧登记多个回调路径。
+- **表结构自动迁移**：better-auth 首次请求时自动建表（`user` / `session` / `account` / `verification` 以及本项目的自定义 `read_articles`）。`read_articles` 表以 better-auth **插件 schema** 方式定义（`apps/web/app/server/auth.ts` 的 `readArticlesPlugin`），与 better-auth 自身表共用一套迁移，无需单独 drizzle 迁移。**改了 auth 表结构后**需对远程 D1 触发一次 `POST /api/auth-migrate`（本地 dev 也会在首次请求时自动建）。
+- GitHub OAuth 凭据作为环境变量 `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 提供：本地写在 `apps/web/.dev.vars`（模板见 `.dev.vars.example`），生产在 `apps/web` 目录执行 `wrangler secret put GITHUB_CLIENT_ID` / `wrangler secret put GITHUB_CLIENT_SECRET`。**绝不**把 key 写进代码或提交到版本控制。
+- **已读状态双轨存储**（本期仅实现记录已读，用户自定义订阅源留待后续）：
+  - **未登录用户**：沿用原 `localStorage['read_articles']` 方案，匿名体验不变（[apps/web/app/hooks/useReadArticles.ts](apps/web/app/hooks/useReadArticles.ts) 内的 `getLocalReadIds`/`saveLocalReadIds`）。`__root.tsx` 的内联脚本仍负责把匿名已读链接提前置灰（防 SSR 闪烁）。
+  - **已登录用户**：已读集合来自服务端 `GET /api/read/articles`（D1 `read_articles` 表，按 `user_id` 查），标记时 `POST /api/read/articles` 或批量 `POST /api/read/articles/batch` 写入（`INSERT OR IGNORE`，唯一索引 `(user_id, article_id)` 去重）。未登录调用这些端点返回 401，前端据此回退 localStorage。
+  - 前端统一通过 `useReadArticles()` hook（`apps/web/app/hooks/useReadArticles.ts`）暴露 `readIds` / `markRead` / `markAllRead`，`SourceSection.tsx` 改用该 hook，不再内联 localStorage 逻辑。登录态由 `authClient.useSession()` 决定走哪条轨。
+- **服务端取当前用户**用 `apps/web/app/server/session.ts` 的 `getSessionUser(env, request)`（内部 `auth.api.getSession({ headers: request.headers })`），返回 `{ id, name, email, image } | null`。路由中需要先鉴权再操作的接口，先调它判空返回 401。
 
 ### 代码风格
 

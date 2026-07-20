@@ -1,0 +1,19 @@
+# Copy this file to .dev.vars and fill in your API keys.
+# .dev.vars is gitignored and used only for local development.
+# For production, run in apps/web:
+#   wrangler secret put GEMINI_API_KEY
+#   wrangler secret put GITHUB_CLIENT_ID
+#   wrangler secret put GITHUB_CLIENT_SECRET
+
+# 本地开发时直接抓取，不走 Queue（Queue 在本地开发时两个 worker 进程不互通）
+DIRECT_FETCH=true
+# DeepL API key（与 fetcher 的 .dev.vars 保持一致）
+DEEPL_API_KEY=your-deepl-api-key-here
+# Firecrawl API key（用于 V2EX 热议等需要反爬的源）
+FIRECRAWL_API_KEY=your-firecrawl-api-key-here
+# Gemini API key（用于文章 AI 总结）
+GEMINI_API_KEY=your-gemini-api-key-here
+
+# better-auth GitHub OAuth 凭据（在 GitHub OAuth App 中配置回调为 <origin>/api/auth/callback/github）
+GITHUB_CLIENT_ID=your-github-oauth-client-id
+GITHUB_CLIENT_SECRET=your-github-oauth-client-secret

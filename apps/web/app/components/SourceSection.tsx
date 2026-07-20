@@ -12,6 +12,7 @@ import {
 import { getSourceHomepage } from '@repo/shared';
 import { IconCheck } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useReadArticles } from '../hooks/useReadArticles';
 import type { ArticleGroupedBySource } from '../types/api';
 import { CompactArticleItem } from './CompactArticleItem.js';
 
@@ -21,33 +22,6 @@ interface SourceSectionProps {
 
 const INITIAL_COUNT = 10;
 const PAGE_SIZE = 10;
-const STORAGE_KEY = 'read_articles';
-const MAX_READ_IDS = 5000;
-
-function getReadArticleIds(): Set<number> {
-  if (typeof localStorage === 'undefined') return new Set();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set();
-    const arr: number[] = JSON.parse(raw);
-    return new Set(arr.filter((n) => typeof n === 'number' && !Number.isNaN(n)));
-  } catch {
-    return new Set();
-  }
-}
-
-function saveReadArticleIds(ids: Set<number>) {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    const arr = Array.from(ids);
-    if (arr.length > MAX_READ_IDS) {
-      arr.splice(0, arr.length - MAX_READ_IDS);
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-  } catch {
-    // localStorage 不可用或已满，静默忽略
-  }
-}
 
 function buildGroupedUrl(sourceId: number, offset: number) {
   const params = new URLSearchParams({
@@ -63,7 +37,7 @@ export function SourceSection({ group }: SourceSectionProps) {
   const [offset, setOffset] = useState(articles.length);
   const [hasMore, setHasMore] = useState(articles.length < total);
   const [loading, setLoading] = useState(false);
-  const [readArticleIds, setReadArticleIds] = useState<Set<number>>(getReadArticleIds);
+  const { readIds: readArticleIds, markRead: handleReadArticle, markAllRead } = useReadArticles();
   // expanded 控制卡片是否锁定高度并允许滚动；点 Show More 或滚动到底部时展开。
   const [expanded, setExpanded] = useState(false);
 
@@ -133,23 +107,8 @@ export function SourceSection({ group }: SourceSectionProps) {
     }
   }, [hasMore, loadMore]);
 
-  const handleReadArticle = (articleId: number) => {
-    const prev = getReadArticleIds();
-    if (prev.has(articleId)) return;
-    const ids = new Set(prev);
-    ids.add(articleId);
-    saveReadArticleIds(ids);
-    setReadArticleIds(ids);
-  };
-
   const handleMarkRead = () => {
-    const prev = getReadArticleIds();
-    const ids = new Set(prev);
-    for (const article of articles) {
-      ids.add(article.id);
-    }
-    saveReadArticleIds(ids);
-    setReadArticleIds(ids);
+    markAllRead(articles.map((a) => a.id));
   };
 
   const handleShowMore = () => {
