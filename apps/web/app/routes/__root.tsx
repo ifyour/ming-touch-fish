@@ -86,7 +86,11 @@ function RootComponent() {
           style={{ borderRadius: '50%', objectFit: 'cover' }}
         />
       ) : null}
-      <Text size="sm">{session.user.name ?? session.user.email}</Text>
+      <Text size="sm">
+        {(session.user as { displayName?: string | null }).displayName ??
+          session.user.name ??
+          session.user.email}
+      </Text>
       <Anchor
         component="button"
         size="xs"

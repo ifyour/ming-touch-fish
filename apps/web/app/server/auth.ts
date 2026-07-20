@@ -33,6 +33,16 @@ export function getAuth(db: D1Database) {
   const options: BetterAuthOptions = {
     database: db,
     baseURL: resolveBaseURL(),
+    user: {
+      additionalFields: {
+        displayName: {
+          type: 'string',
+          required: false,
+          defaultValue: null,
+          input: false,
+        },
+      },
+    },
     socialProviders: {
       github: {
         // 同时兼容 GITHUB_CLIENT_ID 与本地专用的 GITHUB_CLIENT_LOCAL_ID（见 .dev.vars）。
@@ -42,8 +52,10 @@ export function getAuth(db: D1Database) {
         // 允许用户在 GitHub 已登录多个账号时选择
         scope: ['read:user', 'user:email'],
         // 把 GitHub 登录名（login）写入 user.name，便于后台按 GitHub 用户名鉴权。
+        // 展示用昵称（GitHub display name）写入自定义字段 displayName。
         mapProfileToUser: (profile) => ({
           name: (profile as { login?: string; name?: string }).login ?? profile.name,
+          displayName: (profile as { name?: string }).name ?? undefined,
           email: profile.email,
           image: (profile as { avatar_url?: string }).avatar_url,
         }),
