@@ -201,7 +201,7 @@ better-auth 前端登录时通过 `signIn.social({ callbackURL: '/' })` 回调�
 better-auth 使用原生 Cloudflare D1 适配器，表结构（`user` / `session` / `account` / `verification` 以及自定义 `read_articles`）在首次请求时**自动建表**。也可部署后手动触发一次迁移：
 
 ```bash
-curl -X POST https://<你的 Pages 域名>/api/auth-migrate
+curl -X POST https://<你的 Pages 域名>/api/admin-migrate
 ```
 
 ### 5. 部署

@@ -38,9 +38,9 @@ app.route('/api/articles', articlesRoute);
 app.route('/api/favicon', faviconRoute);
 app.route('/api/read', readRoute);
 
-// 手动迁移 better-auth 表结构（首次部署或变更后调用一次）。放在 /api/auth/* 通配之前，
-// 且使用独立路径避免被 better-auth handler 拦截。
-app.post('/api/auth-migrate', async (c) => {
+// 手动迁移 better-auth 表结构（首次部署或变更后调用一次）。路径故意避开 /api/auth/ 前缀，
+// 否则会被下方 /api/auth/* 通配路由接管而返回 404。
+app.post('/api/admin-migrate', async (c) => {
   try {
     const auth = getAuth(c.env.DB);
     await runAuthMigrations(auth);
