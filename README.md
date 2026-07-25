@@ -8,18 +8,24 @@
 </p>
 
 <p align="center">
-  <b><a href="https://news.mingming.dev">news.mingming.dev</a></b> ·
+  <img src="https://img.shields.io/badge/Frontend-TanStack_Start-18181B?style=flat-square&labelColor=0F172A" alt="TanStack Start">
+  <img src="https://img.shields.io/badge/UI-Mantine_v7-339AF0?style=flat-square&labelColor=0F172A" alt="Mantine v7">
+  <img src="https://img.shields.io/badge/API-Hono-E36002?style=flat-square&labelColor=0F172A" alt="Hono">
+  <img src="https://img.shields.io/badge/Database-D1_+_Drizzle-38BDF8?style=flat-square&labelColor=0F172A" alt="Cloudflare D1 + Drizzle">
+  <img src="https://img.shields.io/badge/Workers-Cron_+_Queues-38BDF8?style=flat-square&labelColor=0F172A" alt="Cloudflare Workers + Queues">
+  <img src="https://img.shields.io/badge/Translation-DeepL-0F2B46?style=flat-square&labelColor=0F172A" alt="DeepL">
+  <img src="https://img.shields.io/badge/AI-Gemini-4285F4?style=flat-square&labelColor=0F172A" alt="Gemini">
+  <img src="https://img.shields.io/badge/Auth-better_auth-000000?style=flat-square&labelColor=0F172A" alt="better-auth">
+  <img src="https://img.shields.io/badge/Monorepo-Turborepo-EF4444?style=flat-square&labelColor=0F172A" alt="Turborepo">
+</p>
+
+<p align="center">
   <a href="#-功能特性">功能特性</a> ·
   <a href="#-技术栈">技术栈</a> ·
   <a href="#-快速开始">快速开始</a> ·
   <a href="#-项目结构">项目结构</a>
 </p>
 
-<br>
-
----
-
-<br>
 
 ## 🎯 功能特性
 
@@ -66,11 +72,6 @@
   </tr>
 </table>
 
-<br>
-
----
-
-<br>
 
 ## 🏗️ 架构概览
 
@@ -83,32 +84,6 @@
 <p align="center">
   <img src="./assets/readme/architecture.svg" width="100%" alt="系统架构四阶段流程图：RSS 资讯源 → Cloudflare Queues → 抓取去重翻译 → D1 存储与前端展示">
 </p>
-
-<br>
-
----
-
-<br>
-
-## 🛠️ 技术栈
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Frontend-TanStack_Start-18181B?style=flat-square&labelColor=0F172A" alt="TanStack Start">
-  <img src="https://img.shields.io/badge/UI-Mantine_v7-339AF0?style=flat-square&labelColor=0F172A" alt="Mantine v7">
-  <img src="https://img.shields.io/badge/API-Hono-E36002?style=flat-square&labelColor=0F172A" alt="Hono">
-  <img src="https://img.shields.io/badge/Database-D1_+_Drizzle-38BDF8?style=flat-square&labelColor=0F172A" alt="Cloudflare D1 + Drizzle">
-  <img src="https://img.shields.io/badge/Workers-Cron_+_Queues-38BDF8?style=flat-square&labelColor=0F172A" alt="Cloudflare Workers + Queues">
-  <img src="https://img.shields.io/badge/Translation-DeepL-0F2B46?style=flat-square&labelColor=0F172A" alt="DeepL">
-  <img src="https://img.shields.io/badge/AI-Gemini-4285F4?style=flat-square&labelColor=0F172A" alt="Gemini">
-  <img src="https://img.shields.io/badge/Auth-better_auth-000000?style=flat-square&labelColor=0F172A" alt="better-auth">
-  <img src="https://img.shields.io/badge/Monorepo-Turborepo-EF4444?style=flat-square&labelColor=0F172A" alt="Turborepo">
-</p>
-
-<br>
-
----
-
-<br>
 
 ## ⚡ 快速开始
 
@@ -162,11 +137,7 @@ pnpm dev:fetcher
 
 > **本地开发注意**：web 的 `.dev.vars` 设置 `DIRECT_FETCH=true` 时，API 跳过 Queue 直接同步抓取；本地 fetcher 与 web 的 Queue 不互通。
 
-<br>
 
----
-
-<br>
 
 ## 📁 项目结构
 
@@ -188,12 +159,6 @@ pnpm dev:fetcher
 └── .pnpmfile.cjs             # 锁定 @tanstack/* 到 1.114.1
 ```
 
-<br>
-
----
-
-<br>
-
 ## 📊 数据模型
 
 两张 D1 表（完整定义见 `packages/db/src/schema.ts`）：
@@ -205,11 +170,6 @@ pnpm dev:fetcher
 
 关键索引：`articles_source_url_idx`（同源跨 URL 去重）、`articles_source_published_idx`、`sources_priority_idx`
 
-<br>
-
----
-
-<br>
 
 ## 📡 API 概览
 
@@ -228,11 +188,7 @@ pnpm dev:fetcher
 | POST | `/api/read/articles/batch` | 批量标记已读 |
 | `*` | `/api/auth/*` | better-auth：GitHub OAuth 登录 / 登出 / 会话 |
 
-<br>
 
----
-
-<br>
 
 ## 🧪 代码质量
 
@@ -255,11 +211,6 @@ pnpm cleanup     # 清理悬挂的 workerd / esbuild 进程
 pnpm db:generate # 生成 Drizzle 迁移
 ```
 
-<br>
-
----
-
-<br>
 
 ## 🚀 部署
 
@@ -293,11 +244,6 @@ better-auth 表在首次请求时自动建表。首次部署后可手动触发�
 curl -X POST https://<your-domain>/api/admin-migrate
 ```
 
-<br>
-
----
-
-<br>
 
 ## ⚠️ 已知坑
 
@@ -306,13 +252,3 @@ curl -X POST https://<your-domain>/api/admin-migrate
 - **静态资源目录唯一**：favicon / logo / `_headers` 只放在 `apps/web/public/`，根目录 `public/` 已删除
 - **正文抽取改动要实测**：文章总结的 live 抓取依赖 `@mozilla/readability`，改动 `packages/shared/src/extract.ts` 后务必用真实文章页测试
 - **本地 fetcher 不收 web 的消息**：本地开发时两个进程 Queue 不互通，web 需设 `DIRECT_FETCH=true` 才能同步抓取
-
-<br>
-
----
-
-<br>
-
-<p align="center">
-  <sub>Built with <a href="https://news.mingming.dev">TouchFish News</a> · 聚合精选技术资讯与优质内容</sub>
-</p>
