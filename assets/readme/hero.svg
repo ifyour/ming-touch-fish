@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">摸鱼资讯 TouchFish News</title>
+  <desc id="hero-desc">基于 Cloudflare 全栈的个人资讯聚合平台。自动抓取 RSS 源、通过 DeepL 翻译英文标题、借助 Gemini 生成 AI 文章总结，按源分组展示技术资讯。</desc>
+
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#0A0F1A" />
+    </linearGradient>
+    <radialGradient id="glowRight" cx="0.8" cy="0.5" r="0.55">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.07" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="cardBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#182234" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="380" rx="24" fill="url(#bgGrad)" />
+  <rect width="1200" height="380" rx="24" fill="url(#glowRight)" />
+
+  <!-- ===== LEFT PANEL: Title Area ===== -->
+  <g transform="translate(56, 44)">
+    <!-- Eyebrow pill — shifted up 10px relative to title -->
+    <g transform="translate(0, -10)">
+      <rect x="0" y="0" width="200" height="28" rx="14" fill="#1E293B" stroke="#334155" stroke-width="1" />
+      <text x="16" y="18" font-family="ui-monospace, SF Mono, monospace" font-size="12" fill="#94A3B8" letter-spacing="0.8" font-weight="500">RSS · AI · CLOUDFLARE</text>
+    </g>
+
+    <!-- Main title -->
+    <text x="0" y="84" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="66" font-weight="700" fill="#F8FAFC">摸鱼资讯</text>
+    <text x="0" y="120" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="26" font-weight="500" fill="#38BDF8" letter-spacing="0.3">TouchFish News</text>
+
+    <!-- Tagline -->
+    <text x="0" y="170" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="18" fill="#94A3B8">一站式聚合 RSS 抓取 · DeepL 自动翻译</text>
+    <text x="0" y="198" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="18" fill="#94A3B8">Gemini AI 总结 · 多源分组展示</text>
+
+    <!-- Tech badges — widths computed for text-only fit -->
+    <g transform="translate(0, 234)">
+      <rect x="0"  y="0" height="30" width="100" rx="6" fill="#1D3A5C" />
+      <text x="10" y="19" font-family="ui-monospace, SF Mono, monospace" font-size="12" fill="#7DD3FC">Pages + D1</text>
+
+      <rect x="110" y="0" height="30" width="140" rx="6" fill="#1D3A5C" />
+      <text x="120" y="19" font-family="ui-monospace, SF Mono, monospace" font-size="12" fill="#7DD3FC">Workers + Queues</text>
+
+      <rect x="260" y="0" height="30" width="130" rx="6" fill="#1D3A5C" />
+      <text x="270" y="19" font-family="ui-monospace, SF Mono, monospace" font-size="12" fill="#7DD3FC">Hono + TanStack</text>
+
+      <rect x="400" y="0" height="30" width="118" rx="6" fill="#1D3A5C" />
+      <text x="409" y="19" font-family="ui-monospace, SF Mono, monospace" font-size="12" fill="#7DD3FC">DeepL + Gemini</text>
+    </g>
+
+    <!-- Live site indicator -->
+    <g transform="translate(0, 290)">
+      <circle cx="6" cy="-4" r="4" fill="#22C55E" />
+      <text x="16" y="0" font-family="ui-monospace, SF Mono, monospace" font-size="13" fill="#64748B">→ news.mingming.dev</text>
+    </g>
+  </g>
+
+  <!-- ===== RIGHT PANEL: News Cards ===== -->
+  <!-- Both cards share the same x=610 for clean vertical alignment -->
+  <!-- Card 1: Hacker News -->
+  <g transform="translate(610, 42)">
+    <rect x="0" y="0" width="530" height="122" rx="12" fill="url(#cardBg)" stroke="#334155" stroke-width="1" />
+
+    <rect x="16" y="16" width="8" height="8" rx="2" fill="#FF6600" />
+    <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="600" fill="#F1F5F9">Hacker News</text>
+    <text x="514" y="24" font-family="ui-monospace, SF Mono, monospace" font-size="11" fill="#64748B" text-anchor="end">news.ycombinator.com</text>
+
+    <line x1="16" y1="46" x2="514" y2="46" stroke="#1E293B" stroke-width="1" stroke-dasharray="3 3" />
+
+    <circle cx="20" cy="54" r="2.5" fill="#475569" />
+    <text x="29" y="58" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">AI 模型训练成本预计 2028 年前下降 90%</text>
+
+    <circle cx="20" cy="76" r="2.5" fill="#475569" />
+    <text x="29" y="80" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">Rust 成为 Linux 内核第二官方语言的进展</text>
+
+    <circle cx="20" cy="98" r="2.5" fill="#475569" />
+    <text x="29" y="102" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">Google 发布下一代 TPU v7 详细基准测试</text>
+  </g>
+
+  <!-- Flow line from title to card 1 -->
+  <path d="M 562 110 C 578 110 588 90 606 88" stroke="#38BDF8" stroke-width="1" fill="none" stroke-dasharray="2 4" opacity="0.15" />
+
+  <!-- Card 2: V2EX 热榜 -->
+  <g transform="translate(610, 190)">
+    <rect x="0" y="0" width="530" height="122" rx="12" fill="url(#cardBg)" stroke="#334155" stroke-width="1" />
+
+    <rect x="16" y="16" width="8" height="8" rx="2" fill="#38BDF8" />
+    <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="15" font-weight="600" fill="#F1F5F9">V2EX 热榜</text>
+    <text x="514" y="24" font-family="ui-monospace, SF Mono, monospace" font-size="11" fill="#64748B" text-anchor="end">v2ex.com</text>
+
+    <line x1="16" y1="46" x2="514" y2="46" stroke="#1E293B" stroke-width="1" stroke-dasharray="3 3" />
+
+    <circle cx="20" cy="54" r="2.5" fill="#475569" />
+    <text x="29" y="58" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">2026 年最值得加入的远程技术团队推荐</text>
+
+    <circle cx="20" cy="76" r="2.5" fill="#475569" />
+    <text x="29" y="80" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">国内开发者如何应对 Cloudflare 新定价策略</text>
+
+    <circle cx="20" cy="98" r="2.5" fill="#475569" />
+    <text x="29" y="102" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">GitHub Copilot 正式支持 Claude Fable 模型</text>
+  </g>
+
+  <!-- Flow line from title to card 2 -->
+  <path d="M 562 215 C 578 215 588 200 606 198" stroke="#2DD4BF" stroke-width="1" fill="none" stroke-dasharray="2 4" opacity="0.12" />
+
+  <!-- ===== DECORATIVE ELEMENTS ===== -->
+
+  <!-- Fish motif (bottom-right, subtle) -->
+  <g transform="translate(1132, 342) scale(0.65)" opacity="0.12">
+    <path d="M 75 50 C 75 35, 55 35, 40 40 L 25 35 L 32 50 L 25 65 L 40 60 C 55 65, 75 65, 75 50 Z" stroke="#38BDF8" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 28 38 L 32 50 L 28 62" stroke="#38BDF8" stroke-width="2" fill="none" opacity="0.6" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="68" cy="45" r="4" stroke="#38BDF8" stroke-width="1.5" fill="none" />
+    <circle cx="69" cy="45" r="1.5" fill="#38BDF8" />
+  </g>
+
+  <!-- Subtle bottom water ripple -->
+  <path d="M 0 374 Q 300 366 600 374 Q 900 382 1200 374" stroke="#38BDF8" stroke-width="1" fill="none" opacity="0.08" />
+  <path d="M 0 378 Q 300 374 600 378 Q 900 382 1200 378" stroke="#38BDF8" stroke-width="0.8" fill="none" opacity="0.05" />
+</svg>

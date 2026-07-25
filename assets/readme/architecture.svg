@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">系统架构 | Architecture</title>
+  <desc id="arch-desc">摸鱼资讯基于 Cloudflare 全栈的四阶段流水线架构：RSS 资讯源 → Cloudflare Queues 异步处理 → 抓取去重翻译 → D1 存储与 Web 前端展示。</desc>
+
+  <defs>
+    <linearGradient id="archBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#0A0F1A" />
+    </linearGradient>
+    <linearGradient id="cardGrad1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#182234" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="360" rx="20" fill="url(#archBg)" />
+
+  <!-- Title -->
+  <text x="56" y="52" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="28" font-weight="700" fill="#F8FAFC">系统架构</text>
+  <text x="56" y="76" font-family="ui-monospace, SF Mono, monospace" font-size="13" fill="#64748B" letter-spacing="0.5">ARCHITECTURE · CLOUDFLARE FULLSTACK</text>
+
+  <!-- ===== Card 1: RSS Sources ===== -->
+  <g transform="translate(56, 116)">
+    <rect x="0" y="0" width="240" height="160" rx="12" fill="url(#cardGrad1)" stroke="#334155" stroke-width="1" />
+
+    <circle cx="24" cy="22" r="16" fill="#1D3A5C" />
+    <text x="24" y="27" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" text-anchor="middle">📡</text>
+
+    <text x="50" y="27" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="16" font-weight="600" fill="#F1F5F9">RSS 资讯源</text>
+
+    <line x1="16" y1="46" x2="224" y2="46" stroke="#1E293B" stroke-width="1" />
+
+    <circle cx="20" cy="65" r="3" fill="#FF6600" />
+    <text x="30" y="69" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="13" fill="#CBD5E1">Hacker News / TechCrunch</text>
+
+    <circle cx="20" cy="88" r="3" fill="#38BDF8" />
+    <text x="30" y="92" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="13" fill="#CBD5E1">V2EX 热议 / Reddit</text>
+
+    <circle cx="20" cy="111" r="3" fill="#2DD4BF" />
+    <text x="30" y="115" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="13" fill="#CBD5E1">阮一峰 / 煎蛋 / InfoQ</text>
+
+    <circle cx="20" cy="134" r="3" fill="#64748B" />
+    <text x="30" y="138" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="12" fill="#64748B">+ 自定义 RSS</text>
+  </g>
+
+  <!-- Arrow 1 → 2 -->
+  <g transform="translate(308, 196)">
+    <path d="M 0 0 L 24 0" stroke="#38BDF8" stroke-width="2" opacity="0.6" />
+    <path d="M 20 -6 L 28 0 L 20 6" stroke="#38BDF8" stroke-width="2" fill="none" opacity="0.6" />
+  </g>
+
+  <!-- ===== Card 2: Queue ===== -->
+  <g transform="translate(340, 116)">
+    <rect x="0" y="0" width="240" height="160" rx="12" fill="url(#cardGrad1)" stroke="#334155" stroke-width="1" />
+
+    <circle cx="24" cy="22" r="16" fill="#1D3A5C" />
+    <text x="24" y="27" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" text-anchor="middle">☁️</text>
+
+    <text x="50" y="27" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="16" font-weight="600" fill="#F1F5F9">Cloudflare Queues</text>
+
+    <line x1="16" y1="46" x2="224" y2="46" stroke="#1E293B" stroke-width="1" />
+
+    <text x="16" y="70" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#94A3B8">异步消费队列</text>
+    <text x="16" y="96" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#94A3B8">每批最多 10 条消息</text>
+    <text x="16" y="122" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#94A3B8">失败重试 3 次</text>
+    <text x="16" y="148" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="14" fill="#38BDF8">配额类错误自动跳过</text>
+  </g>
+
+  <!-- Arrow 2 → 3 -->
+  <g transform="translate(592, 196)">
+    <path d="M 0 0 L 24 0" stroke="#38BDF8" stroke-width="2" opacity="0.6" />
+    <path d="M 20 -6 L 28 0 L 20 6" stroke="#38BDF8" stroke-width="2" fill="none" opacity="0.6" />
+  </g>
+
+  <!-- ===== Card 3: Fetch & Process ===== -->
+  <g transform="translate(624, 116)">
+    <rect x="0" y="0" width="240" height="160" rx="12" fill="url(#cardGrad1)" stroke="#334155" stroke-width="1" />
+
+    <circle cx="24" cy="22" r="16" fill="#1D3A5C" />
+    <text x="24" y="27" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" text-anchor="middle">⚙️</text>
+
+    <text x="50" y="27" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="16" font-weight="600" fill="#F1F5F9">抓取 · 去重 · 翻译</text>
+
+    <line x1="16" y1="46" x2="224" y2="46" stroke="#1E293B" stroke-width="1" />
+
+    <!-- Three-step pipeline: fetch → dedup → translate -->
+    <g transform="translate(16, 58)">
+      <rect x="0" y="0" width="208" height="24" rx="6" fill="#1E293B" stroke="#334155" stroke-width="0.8" />
+      <circle cx="12" cy="12" r="3" fill="#22C55E" />
+      <text x="22" y="16" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="12" fill="#CBD5E1">抓取 RSS 原始内容</text>
+    </g>
+
+    <!-- Arrow 1 → 2 -->
+    <path d="M 120 82 L 120 86" stroke="#38BDF8" stroke-width="1.2" fill="none" opacity="0.5" />
+    <path d="M 116 84 L 120 88 L 124 84" stroke="#38BDF8" stroke-width="1.2" fill="none" opacity="0.5" />
+
+    <g transform="translate(16, 90)">
+      <rect x="0" y="0" width="208" height="24" rx="6" fill="#1E293B" stroke="#334155" stroke-width="0.8" />
+      <circle cx="12" cy="12" r="3" fill="#38BDF8" />
+      <text x="22" y="16" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="12" fill="#CBD5E1">NormalizeUrl 去重</text>
+    </g>
+
+    <!-- Arrow 2 → 3 -->
+    <path d="M 120 114 L 120 118" stroke="#38BDF8" stroke-width="1.2" fill="none" opacity="0.5" />
+    <path d="M 116 116 L 120 120 L 124 116" stroke="#38BDF8" stroke-width="1.2" fill="none" opacity="0.5" />
+
+    <g transform="translate(16, 122)">
+      <rect x="0" y="0" width="208" height="24" rx="6" fill="#1E293B" stroke="#334155" stroke-width="0.8" />
+      <circle cx="12" cy="12" r="3" fill="#2DD4BF" />
+      <text x="22" y="16" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="12" fill="#CBD5E1">DeepL 翻译（批量翻译）</text>
+    </g>
+  </g>
+
+  <!-- Arrow 3 → 4 -->
+  <g transform="translate(876, 196)">
+    <path d="M 0 0 L 24 0" stroke="#38BDF8" stroke-width="2" opacity="0.6" />
+    <path d="M 20 -6 L 28 0 L 20 6" stroke="#38BDF8" stroke-width="2" fill="none" opacity="0.6" />
+  </g>
+
+  <!-- ===== Card 4: D1 + Web ===== -->
+  <g transform="translate(908, 116)">
+    <rect x="0" y="0" width="240" height="160" rx="12" fill="url(#cardGrad1)" stroke="#334155" stroke-width="1" />
+
+    <circle cx="24" cy="22" r="16" fill="#1D3A5C" />
+    <text x="24" y="27" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" text-anchor="middle">💾</text>
+
+    <text x="50" y="27" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="16" font-weight="600" fill="#F1F5F9">D1 存储 + Web</text>
+
+    <line x1="16" y1="46" x2="224" y2="46" stroke="#1E293B" stroke-width="1" />
+
+    <g transform="translate(16, 60)">
+      <rect x="0" y="0" width="208" height="26" rx="6" fill="#1D3A5C" />
+      <text x="36" y="17" font-family="ui-monospace, SF Mono, monospace" font-size="11" fill="#7DD3FC">Drizzle ORM · D1 SQLite</text>
+    </g>
+
+    <rect x="72" y="96" width="96" height="22" rx="11" fill="#1E293B" stroke="#334155" stroke-width="0.8" />
+    <text x="86" y="111" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="12" fill="#F8FAFC">sources 表</text>
+
+    <rect x="72" y="126" width="96" height="22" rx="11" fill="#1E293B" stroke="#334155" stroke-width="0.8" />
+    <text x="86" y="141" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="12" fill="#F8FAFC">articles 表</text>
+  </g>
+
+  <!-- Bottom: Shared library bar -->
+  <g transform="translate(56, 300)">
+    <rect x="0" y="0" width="1088" height="24" rx="6" fill="#1E293B" stroke="#334155" stroke-width="0.6" />
+    <text x="544" y="16" font-family="ui-monospace, SF Mono, monospace" font-size="11" fill="#64748B" text-anchor="middle">@repo/ingest  抓取核心库 · 供 fetcher 与 web 共用</text>
+  </g>
+</svg>
