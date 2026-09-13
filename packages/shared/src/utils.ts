@@ -132,6 +132,8 @@ const FEED_SUBDOMAIN_RE = /^(feed|feeds|rss|atom)$/i;
  * 并去掉 feed 类的子域（如 feed.appinn.com → appinn.com），仅保留 origin + 目录路径（用于卡片标题跳转）。
  */
 export function getSourceHomepage(feedUrl: string): string {
+  // hnrss.org 是 HN 的纯 RSS 服务，无 favicon 且不该作为跳转主页，回指原站。
+  if (/^https?:\/\/hnrss\.org/.test(feedUrl)) return 'https://news.ycombinator.com/';
   try {
     const u = new URL(feedUrl);
     let path = u.pathname;

@@ -103,7 +103,12 @@ app.get('/', async (c) => {
     if (cached) return cached;
   }
 
-  const resp = await resolveFavicon(homepage);
+  let resp = await resolveFavicon(homepage);
+
+  // 兜底：源站反爬（如 HN 对 Cloudflare 返回 419）时走 Google favicon 服务。
+  if (!resp) {
+    resp = await fetchIcon(`https://www.google.com/s2/favicons?domain=${homepage.hostname}&sz=64`);
+  }
 
   if (!resp) {
     logger.warn('favicon 抓取失败', { service: 'web-api', homepage: homepage.toString() });

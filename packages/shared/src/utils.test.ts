@@ -175,6 +175,10 @@ describe('getSourceHomepage', () => {
     expect(getSourceHomepage('https://example.com/blog/feed')).toBe('https://example.com/blog');
   });
 
+  it('maps hnrss.org to hacker news', () => {
+    expect(getSourceHomepage('https://hnrss.org/frontpage')).toBe('https://news.ycombinator.com/');
+  });
+
   it('strips a feed subdomain', () => {
     expect(getSourceHomepage('https://feed.appinn.com/rss')).toBe('https://appinn.com/');
   });
